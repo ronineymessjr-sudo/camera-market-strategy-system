@@ -70,7 +70,41 @@ Pick one deployment path:
 
 Recommended: move from `localtunnel` to Cloudflare Named Tunnel or a small VPS, then bind a real domain.
 
-## 8. Paste This To GPT
+## 8. Frontend And Interaction Focus
+
+The next GPT handoff should focus on frontend, UI, motion, and interaction. Backend/auth/API keys are not the main priority for this handoff unless they directly affect the UI flow.
+
+Current frontend surfaces:
+
+| Surface | Current Role | What GPT Should Improve |
+| --- | --- | --- |
+| Cloudflare Worker entry page | Public first impression | Already upgraded to black/white particle lens style; GPT can critique hero copy, visual hierarchy, CTA clarity, and transition into the full app |
+| Next.js full app dashboard | Main self-use workspace | Needs stronger visual direction, clearer data hierarchy, better empty/loading/error states, and smoother navigation |
+| Sources page | Provider/data-source visibility | Should make provider health, sync state, missing credentials, and fallback mode easy to understand |
+| Product/listing views | Real price evidence workflow | Should emphasize trust level, screenshots, chart evidence, and whether a record is actionable |
+| Strategy/report views | Decision output | Should separate verified strategy from raw evidence and make the "why" behind each recommendation obvious |
+
+Frontend direction to ask GPT for:
+
+- A premium monochrome/market-intelligence visual system that matches the new Cloudflare entry page.
+- A practical dashboard layout for self-use, not a generic SaaS marketing template.
+- Motion ideas that help comprehension: page intro, data card reveal, chart update, provider sync state, evidence verification state, and strategy confidence transition.
+- Clear interaction states: loading, stale data, missing API key, crawl failed, crawl succeeded, verified checkout, visible-only evidence, unverified evidence.
+- Mobile behavior for quick checking, even if heavy analysis stays desktop-first.
+- Concrete acceptance criteria and implementation order, so Codex can implement without guessing.
+
+Suggested frontend deliverables from GPT:
+
+| Deliverable | Purpose |
+| --- | --- |
+| UI critique | Identify what currently feels weak or confusing |
+| Design system direction | Colors, typography, density, motion, components |
+| Page-by-page redesign brief | Dashboard, sources, product detail, strategy/report |
+| Interaction map | What happens when user clicks, filters, syncs, verifies, or opens evidence |
+| Implementation task list | Small enough for Codex to execute and test |
+| QA checklist | Desktop/mobile, loading states, trust rule, performance, accessibility |
+
+## 9. Paste This To GPT
 
 ```text
 你现在接手的是一个“相机价格追踪与策略平台”项目。它的目标是给个人自用，跑通真实商品链接采集、价格记录、证据截图、趋势分析、策略生成和可视化看板。
@@ -89,15 +123,25 @@ Recommended: move from `localtunnel` to Cloudflare Named Tunnel or a small VPS, 
 - 本地完整应用响应约 0.159s，本地 Worker 响应约 0.028s
 - 慢点主要不是应用本身，而是 localtunnel/公网临时链路
 
+这次主要请你做前端和交互 UI 方向判断，不要把重点放在登录、后端重构或 API 密钥申请上。我要先让自己可以稳定使用完整流程，并且让界面更有质感、更清楚、更顺。
+
+当前需要重点评估的前端界面：
+- Cloudflare Worker 入口页：已经做成黑白粒子碰撞 + 镜头核心风格，请判断首屏文案、CTA、视觉层级、和进入完整系统的衔接还可以怎么优化
+- Next.js 主看板：需要更强的市场情报感、更清楚的数据层级、更好的加载/空状态/错误状态
+- 数据源页面：需要把 provider 健康状态、同步状态、缺失密钥、降级模式讲清楚
+- 商品/链接详情：需要突出价格证据、截图、趋势图、可信等级、是否可触发策略
+- 策略/报告页面：需要把 VERIFIED_CHECKOUT 的可执行策略和 VISIBLE_PRICE/UNVERIFIED 的证据型数据分开
+
 核心业务规则：
 - 只有 VERIFIED_CHECKOUT 价格记录可以触发策略
 - VISIBLE_PRICE 和 UNVERIFIED 只能作为证据，不能直接触发策略
 
 现在需要你帮我判断下一步：
-1. 应该优先走 Cloudflare Named Tunnel、VPS 部署，还是其他托管平台？
-2. 在不优先做登录系统的前提下，怎样最快让本人稳定使用完整流程？
-3. SEO/GEO/LLM discovery 应该等正式域名后再做，还是现在先补结构化数据和内容页？
-4. 京东、淘宝、拼多多、eBay、Amazon API 还没密钥，应该怎样设计接入优先级和降级方案？
-5. 请给出下一阶段最小可执行任务清单，按“必须做 / 应该做 / 可选增强”分类。
+1. 请先从产品设计角度批评当前前端可能的问题：哪里不吸引人，哪里信息不清楚，哪里交互路径不顺
+2. 请给出一套和黑白粒子入口页一致的主应用视觉方向，包括颜色、字体、卡片密度、图表风格、动效语言
+3. 请按页面给出改版建议：主看板、数据源页、商品详情页、策略/报告页
+4. 请设计关键交互状态：加载中、数据过期、缺少 API key、同步失败、同步成功、已验证价格、仅可见价格、未验证证据
+5. 请给出动效建议，但必须是能提高理解效率的动效，不要为了炫而拖慢
+6. 请给出 Codex 下一步可以直接执行的任务清单，按“必须做 / 应该做 / 可选增强”分类
+7. 请给出验收标准，包括桌面、移动端、性能、可访问性、业务信任规则是否表达清楚
 ```
-

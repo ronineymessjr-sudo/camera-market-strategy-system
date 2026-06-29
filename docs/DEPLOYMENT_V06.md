@@ -8,15 +8,21 @@ Date: 2026-06-29
 - Frontend V0.6 production proxy build runs locally on `http://127.0.0.1:3003`.
 - Temporary public test URL: `https://camera-market-test-r9.loca.lt`.
 - Stable Cloudflare public entry: `https://camera-market-test-entry.photomagic.workers.dev`.
-- Cloudflare Worker version: `48e1d426-c8d0-46d8-8729-1581ed9b59e0`.
+- Cloudflare Worker version: `c4a495e2-5ec3-49cf-af08-4687a9c7a0b8`.
 - Public URL verified:
   - `/`: `200`
   - `/api/system/health`: `200`
   - `/api/integrations/providers`: `200`
   - `/sources`: `200`
-- Cloudflare entry verified:
-  - `/`: `200`
-  - `/health`: `200`
+- Cloudflare entry deployed:
+  - `/`: deployed successfully by `wrangler deploy`
+  - `/health`: deployed successfully by `wrangler deploy`
+  - Current workstation access to `workers.dev` timed out during `curl`, so visual QA used local `wrangler dev` with the same Worker source.
+- Worker local render verification:
+  - Local Worker `/`: `200`, TTFB about `0.028s`
+  - Local Worker `/health`: `200`
+  - Frontend local production `/`: `200`, TTFB about `0.161s`
+  - Temporary localtunnel public URL returned `408` during the latest check.
 - Frontend production build passed with `npm run build`.
 - Backend test suite passed: `19 passed`.
 - Real local flow passed: crawl success `22`, failure `1`, skipped `0`.
@@ -75,6 +81,31 @@ deploy/cloudflare-public/wrangler.jsonc
 ```
 
 This Worker is not the full application runtime. It links to the temporary full-system tunnel and exposes `/health`. The full system still needs a persistent backend host or a Cloudflare Zone + Named Tunnel for production-grade public access.
+
+The entry page was upgraded on 2026-06-29 to a monochrome particle-collision cover page with a lens-style visual core, animated Canvas background, status cards, GitHub link, data-source link, and a short latency explanation. The implementation is dependency-free and keeps the Worker bundle small:
+
+```text
+Total Worker upload: 23.68 KiB
+Gzip size: 6.80 KiB
+```
+
+Design QA screenshots:
+
+```text
+docs/design-qa/cloudflare-worker-cover-v2.png
+docs/design-qa/cloudflare-worker-cover-v2-mobile.png
+```
+
+### Latest Latency Diagnosis
+
+The platform itself is not the main latency source in the latest local checks. Local production frontend and backend respond quickly. The slow or failed public experience is currently caused by temporary networking layers:
+
+- `http://127.0.0.1:3003/`: about `0.161s` total in the latest local check.
+- `http://127.0.0.1:8787/`: about `0.028s` total for the local Worker render.
+- `https://camera-market-test-r9.loca.lt/`: returned `408` in the latest public tunnel check.
+- `https://camera-market-test-entry.photomagic.workers.dev/`: deployed successfully, but this workstation's direct `curl` to `workers.dev` timed out during verification.
+
+Recommended next fix: replace localtunnel with Cloudflare Named Tunnel or a persistent backend server, then bind a real Cloudflare Zone/domain. That removes the first-visit tunnel warning page, free relay instability, and most cross-network delay.
 
 ## Public Deployment Blockers
 

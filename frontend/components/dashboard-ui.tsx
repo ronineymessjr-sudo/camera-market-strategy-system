@@ -1,9 +1,20 @@
-export function MetricCard({ label, value, note, tone='blue', icon='•' }: { label:string; value:string|number; note?:string; tone?:string; icon?:string }) {
-  return <div className={`metric-card tone-${tone}`}><div><span className="metric-label">{label}</span><strong>{value}</strong>{note && <small>{note}</small>}</div><span className="metric-icon">{icon}</span></div>
+'use client'
+
+import Link from 'next/link'
+import type { ReactNode } from 'react'
+
+import { Pressable, Reveal } from '@/components/motion-system'
+
+export function MetricCard({ label, value, note, tone = 'blue', icon = '00' }: { label:string; value:ReactNode; note?:string; tone?:string; icon?:string }) {
+  return <Reveal><Pressable className={`metric-card tone-${tone}`}>
+    <span className="metric-index">{icon}</span>
+    <div><span className="metric-label">{label}</span><strong>{value}</strong>{note && <small>{note}</small>}</div>
+    <span className="metric-icon">{icon}</span>
+  </Pressable></Reveal>
 }
 
-export function SectionCard({ title, action, children, className='' }: { title:string; action?:string; children:React.ReactNode; className?:string }) {
-  return <section className={`panel ${className}`}><div className="panel-head"><h2>{title}</h2>{action && <button className="text-btn">{action} →</button>}</div>{children}</section>
+export function SectionCard({ title, action, children, className='' }: { title:string; action?:string; children:ReactNode; className?:string }) {
+  return <Reveal className={className}><section className="panel"><div className="panel-head"><h2>{title}</h2>{action && (action.startsWith('/') ? <Link className="text-btn" href={action}>打开 →</Link> : <span className="panel-meta">{action}</span>)}</div>{children}</section></Reveal>
 }
 
 export function Sparkline({ points=[38,42,39,47,45,52,48,55,51,58], color='var(--blue)' }: { points?:number[]; color?:string }) {
@@ -28,7 +39,17 @@ export function PriceChart({ compact=false }: { compact?:boolean }) {
   </div>
 }
 
-export function StatusPill({ children, tone='blue' }: { children:React.ReactNode; tone?:string }) { return <span className={`status-pill ${tone}`}>{children}</span> }
+export function StatusPill({ children, tone='blue' }: { children:ReactNode; tone?:string }) { return <span className={`status-pill ${tone}`}>{children}</span> }
+
+export function TrustBadge({ state }: { state:'verified'|'visible'|'unverified'|'stale' }) {
+  const labels = {
+    verified: '已核验到手价',
+    visible: '仅网页可见价',
+    unverified: '未核验证据',
+    stale: '数据已过期',
+  }
+  return <span className={`trust-badge ${state}`}>{labels[state]}</span>
+}
 
 export const demoProducts = [
   ['Sony FE 24-70mm F2.8 GM II','镜头 / 全画幅','¥13,499','¥12,299','9.8%','高','监控中'],

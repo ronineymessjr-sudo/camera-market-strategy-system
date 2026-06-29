@@ -1,0 +1,8 @@
+{
+  "strategy_name": "Ronin APS-C Strategy",
+  "core_product": "Sigma 17-40mm F1.8 DC Art Sony E",
+  "trigger_price": 4500,
+  "strong_buy_price": 4300,
+  "mode": "value_hunter",
+  "currency": "CNY"
+}

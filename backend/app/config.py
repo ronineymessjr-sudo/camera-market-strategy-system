@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    database_url: str = f"sqlite:///{(BACKEND_DIR / 'camera_market.db').as_posix()}"
+    public_base_url: str = "http://127.0.0.1:8000"
+    frontend_origins: str = "http://127.0.0.1:3000,http://localhost:3000"
+
+    crawler_concurrency: int = 3
+    crawler_timeout_ms: int = 45_000
+    crawler_min_interval_minutes: int = 30
+    crawler_retries: int = 1
+    crawler_headless: bool = True
+
+    scheduler_enabled: bool = False
+    scheduler_interval_minutes: int = 60
+
+    # Official affiliate/open-platform integrations. Secrets stay in environment variables.
+    jd_api_url: str = "https://api.jd.com/routerjson"
+    jd_app_key: str | None = None
+    jd_app_secret: str | None = None
+    jd_union_id: str | None = None
+    jd_goods_query_method: str = "jd.union.open.goods.query"
+
+    taobao_api_url: str = "https://eco.taobao.com/router/rest"
+    taobao_app_key: str | None = None
+    taobao_app_secret: str | None = None
+    taobao_adzone_id: str | None = None
+    taobao_goods_search_method: str = "taobao.tbk.dg.material.optional"
+
+    pdd_api_url: str = "https://gw-api.pinduoduo.com/api/router"
+    pdd_client_id: str | None = None
+    pdd_client_secret: str | None = None
+    pdd_pid: str | None = None
+    pdd_goods_search_method: str = "pdd.ddk.goods.search"
+
+    ebay_api_url: str = "https://api.ebay.com"
+    ebay_client_id: str | None = None
+    ebay_client_secret: str | None = None
+    ebay_marketplace_id: str = "EBAY_US"
+
+    amazon_paapi_host: str = "webservices.amazon.com"
+    amazon_paapi_region: str = "us-east-1"
+    amazon_access_key: str | None = None
+    amazon_secret_key: str | None = None
+    amazon_partner_tag: str | None = None
+    amazon_partner_type: str = "Associates"
+
+    integration_timeout_seconds: float = 30.0
+    integration_offer_ttl_hours: int = 12
+    integration_auto_ingest: bool = True
+
+    # Frontend/event integration hooks. No webhook is sent until explicitly configured.
+    outbound_webhook_url: str | None = None
+    outbound_webhook_secret: str | None = None
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [item.strip() for item in self.frontend_origins.split(",") if item.strip()]
+
+
+settings = Settings()

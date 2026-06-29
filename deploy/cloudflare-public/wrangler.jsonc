@@ -1,0 +1,8 @@
+{
+  "name": "camera-market-test-entry",
+  "main": "worker.js",
+  "compatibility_date": "2026-06-29",
+  "observability": {
+    "enabled": true
+  }
+}

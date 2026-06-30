@@ -26,6 +26,14 @@ TABLE_MAP = OrderedDict(
     ]
 )
 
+BOOLEAN_COLUMNS = {
+    "products": {"is_active"},
+    "platform_listings": {"is_active"},
+    "price_records": {"needs_review"},
+    "strategies": {"is_active"},
+    "signals": {"triggered", "is_current"},
+}
+
 
 def connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
@@ -49,9 +57,11 @@ def quote_ident(value: str) -> str:
     return '"' + value.replace('"', '""') + '"'
 
 
-def sql_literal(value: Any) -> str:
+def sql_literal(value: Any, *, source_table: str | None = None, column: str | None = None) -> str:
     if value is None:
         return "null"
+    if source_table and column and column in BOOLEAN_COLUMNS.get(source_table, set()):
+        return "true" if bool(value) else "false"
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, int | float | Decimal):
@@ -106,7 +116,10 @@ def export_sql(conn: sqlite3.Connection) -> str:
 
         lines.append(f"-- {source_table} -> public.{target_table}: {len(rows)} rows")
         for row in rows:
-            values = ", ".join(sql_literal(row[column]) for column in columns)
+            values = ", ".join(
+                sql_literal(row[column], source_table=source_table, column=column)
+                for column in columns
+            )
             lines.append(
                 f"insert into public.{quote_ident(target_table)} ({quoted_columns}) "
                 f"values ({values}) on conflict (id) {conflict_clause};"

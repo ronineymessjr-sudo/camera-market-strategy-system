@@ -84,6 +84,40 @@ def summarize(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"tables": tables, "counts": counts}
 
 
+def json_value(value: Any, *, source_table: str, column: str) -> Any:
+    if value is None:
+        return None
+    if column in BOOLEAN_COLUMNS.get(source_table, set()):
+        return bool(value)
+    return value
+
+
+def export_json_seed(conn: sqlite3.Connection) -> dict[str, Any]:
+    tables = []
+    for source_table, target_table in TABLE_MAP.items():
+        if not table_exists(conn, source_table):
+            continue
+
+        columns = table_columns(conn, source_table)
+        rows = conn.execute(
+            f"select * from {quote_ident(source_table)} order by id"
+        ).fetchall()
+        tables.append(
+            {
+                "source": source_table,
+                "target": target_table,
+                "rows": [
+                    {
+                        column: json_value(row[column], source_table=source_table, column=column)
+                        for column in columns
+                    }
+                    for row in rows
+                ],
+            }
+        )
+    return {"version": "v0.12", "tables": tables}
+
+
 def export_sql(conn: sqlite3.Connection) -> str:
     lines = [
         "-- Generated from backend/camera_market.db by scripts/export-sqlite-to-supabase-v012.py",
@@ -150,11 +184,19 @@ def main() -> None:
     parser.add_argument("--db", default="backend/camera_market.db", type=Path)
     parser.add_argument("--summary", action="store_true")
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--json-out", type=Path)
     args = parser.parse_args()
 
     conn = connect(args.db)
     if args.summary:
         print(json.dumps(summarize(conn), ensure_ascii=False, indent=2))
+        return
+    if args.json_out:
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.json_out.write_text(
+            json.dumps(export_json_seed(conn), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
         return
 
     sql = export_sql(conn)

@@ -259,7 +259,7 @@ insert into public."daily_reports" ("id", "report_date", "title", "summary", "ma
 - checkout_price / region / login_state
 - platform_coupon / shop_coupon / vip_discount / coin_discount
 - screenshot_hash / verification_status
-', '/static/charts/market_2026-06-25.png', '2026-06-25 01:53:55', null) on conflict (id) do update set "report_date" = excluded."report_date", "title" = excluded."title", "summary" = excluded."summary", "markdown_content" = excluded."markdown_content", "chart_path" = excluded."chart_path", "created_at" = excluded."created_at", "updated_at" = excluded."updated_at";
+', '/static/charts/market_2026-06-25.png', '2026-06-25 01:53:55', '2026-06-25 01:53:55') on conflict (id) do update set "report_date" = excluded."report_date", "title" = excluded."title", "summary" = excluded."summary", "markdown_content" = excluded."markdown_content", "chart_path" = excluded."chart_path", "created_at" = excluded."created_at", "updated_at" = excluded."updated_at";
 insert into public."daily_reports" ("id", "report_date", "title", "summary", "markdown_content", "chart_path", "created_at", "updated_at") values (2, '2026-06-27', '摄影数码策略日报｜2026-06-27', '今日可核验价格 1 条；策略触发 1 次。', '# 摄影数码策略日报｜2026-06-27
 
 ## 今日结论
@@ -312,7 +312,7 @@ insert into public."daily_reports" ("id", "report_date", "title", "summary", "ma
 - checkout_price / region / login_state
 - platform_coupon / shop_coupon / vip_discount / coin_discount
 - screenshot_hash / verification_status
-', '/static/charts/market_2026-06-27.png', '2026-06-27 11:55:07', null) on conflict (id) do update set "report_date" = excluded."report_date", "title" = excluded."title", "summary" = excluded."summary", "markdown_content" = excluded."markdown_content", "chart_path" = excluded."chart_path", "created_at" = excluded."created_at", "updated_at" = excluded."updated_at";
+', '/static/charts/market_2026-06-27.png', '2026-06-27 11:55:07', '2026-06-27 11:55:07') on conflict (id) do update set "report_date" = excluded."report_date", "title" = excluded."title", "summary" = excluded."summary", "markdown_content" = excluded."markdown_content", "chart_path" = excluded."chart_path", "created_at" = excluded."created_at", "updated_at" = excluded."updated_at";
 insert into public."daily_reports" ("id", "report_date", "title", "summary", "markdown_content", "chart_path", "created_at", "updated_at") values (3, '2026-06-28', '摄影数码策略日报｜2026-06-28', '今日可核验价格 1 条；策略触发 1 次。', '# 摄影数码策略日报｜2026-06-28
 
 ## 今日结论
@@ -365,7 +365,7 @@ insert into public."daily_reports" ("id", "report_date", "title", "summary", "ma
 - checkout_price / region / login_state
 - platform_coupon / shop_coupon / vip_discount / coin_discount
 - screenshot_hash / verification_status
-', '/static/charts/market_2026-06-28.png', '2026-06-28 03:04:27', null) on conflict (id) do update set "report_date" = excluded."report_date", "title" = excluded."title", "summary" = excluded."summary", "markdown_content" = excluded."markdown_content", "chart_path" = excluded."chart_path", "created_at" = excluded."created_at", "updated_at" = excluded."updated_at";
+', '/static/charts/market_2026-06-28.png', '2026-06-28 03:04:27', '2026-06-28 03:04:27') on conflict (id) do update set "report_date" = excluded."report_date", "title" = excluded."title", "summary" = excluded."summary", "markdown_content" = excluded."markdown_content", "chart_path" = excluded."chart_path", "created_at" = excluded."created_at", "updated_at" = excluded."updated_at";
 insert into public."daily_reports" ("id", "report_date", "title", "summary", "markdown_content", "chart_path", "created_at", "updated_at") values (4, '2026-06-29', '摄影数码策略日报｜2026-06-29', '活跃商品 20；已核验新增 0；可见线索 38；未核验 38；策略触发 0；过期策略价 1。', '# 摄影数码策略日报｜2026-06-29
 
 ## 今日结论

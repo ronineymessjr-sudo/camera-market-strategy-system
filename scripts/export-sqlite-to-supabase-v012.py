@@ -92,6 +92,13 @@ def json_value(value: Any, *, source_table: str, column: str) -> Any:
     return value
 
 
+def normalized_row(row: sqlite3.Row, columns: list[str], source_table: str) -> dict[str, Any]:
+    values = {column: row[column] for column in columns}
+    if source_table == "daily_reports" and values.get("updated_at") is None:
+        values["updated_at"] = values.get("created_at")
+    return values
+
+
 def export_json_seed(conn: sqlite3.Connection) -> dict[str, Any]:
     tables = []
     for source_table, target_table in TABLE_MAP.items():
@@ -102,6 +109,7 @@ def export_json_seed(conn: sqlite3.Connection) -> dict[str, Any]:
         rows = conn.execute(
             f"select * from {quote_ident(source_table)} order by id"
         ).fetchall()
+        normalized_rows = [normalized_row(row, columns, source_table) for row in rows]
         tables.append(
             {
                 "source": source_table,
@@ -111,7 +119,7 @@ def export_json_seed(conn: sqlite3.Connection) -> dict[str, Any]:
                         column: json_value(row[column], source_table=source_table, column=column)
                         for column in columns
                     }
-                    for row in rows
+                    for row in normalized_rows
                 ],
             }
         )
@@ -150,8 +158,9 @@ def export_sql(conn: sqlite3.Connection) -> str:
 
         lines.append(f"-- {source_table} -> public.{target_table}: {len(rows)} rows")
         for row in rows:
+            row_values = normalized_row(row, columns, source_table)
             values = ", ".join(
-                sql_literal(row[column], source_table=source_table, column=column)
+                sql_literal(row_values[column], source_table=source_table, column=column)
                 for column in columns
             )
             lines.append(

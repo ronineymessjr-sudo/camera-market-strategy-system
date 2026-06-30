@@ -4232,7 +4232,7 @@
           "markdown_content": "# 摄影数码策略日报｜2026-06-25\n\n## 今日结论\n\n**今日可核验价格 1 条；策略触发 1 次。**\n\n- 今日可核验价格：1\n- 策略触发：1\n- 观察标的：7\n\n## 用户策略状态\n\n| 产品 | 触发线 | 强买线 | 状态 | 说明 |\n|---|---:|---:|---|---|\n| Sigma 17-40mm F1.8 DC Art Sony E | ¥4500.00 | ¥4300.00 | STRONG_BUY | 到手价 4299.00 已进入强买/神价区。 |\n\n## 今日真实价格\n\n| 产品 | 平台 | 店铺 | 到手价 | 核验状态 | 来源 |\n|---|---|---|---:|---|---|\n| Sigma 17-40mm F1.8 DC Art Sony E | official | Sigma Global | ¥4299 | VERIFIED_CHECKOUT | https://www.sigma-global.com/en/lenses/a025_17_40_18/ |\n\n## 历史神价库\n\n| 产品 | 历史锚点 | 来源 |\n|---|---:|---|\n| Sigma 17-40mm F1.8 DC Art Sony E | ¥4200–¥4300 | 用户记录：618、88VIP、淘金币、满减叠加，待订单截图验证 |\n\n## 今日线索\n\n- Sigma 17-40mm F1.8 DC Art Sony E: official 有记录，但标注为 **VISIBLE_PRICE**，不可作为确定到手价。\n- Tamron 17-70mm F2.8 Sony E: 暂无采集记录。\n- Sigma 18-50mm F2.8 DC DN Sony E: 暂无采集记录。\n- Viltrox 75mm F1.2 Sony E: 暂无采集记录。\n- Sony 35mm F1.8 FE: 暂无采集记录。\n- DJI Pocket 3: 暂无采集记录。\n- iPad Air: 暂无采集记录。\n\n## AI建议\n\n- **Sigma 17-40mm F1.8 DC Art Sony E**：STRONG_BUY。到手价 4299.00 已进入强买/神价区。\n\n## 视觉行情图\n\n![market chart](/static/charts/market_2026-06-25.png)\n\n## 网站 / API 数据缺口\n\n- sku_id / platform_item_id\n- checkout_price / region / login_state\n- platform_coupon / shop_coupon / vip_discount / coin_discount\n- screenshot_hash / verification_status\n",
           "chart_path": "/static/charts/market_2026-06-25.png",
           "created_at": "2026-06-25 01:53:55",
-          "updated_at": null
+          "updated_at": "2026-06-25 01:53:55"
         },
         {
           "id": 2,
@@ -4242,7 +4242,7 @@
           "markdown_content": "# 摄影数码策略日报｜2026-06-27\n\n## 今日结论\n\n**今日可核验价格 1 条；策略触发 1 次。**\n\n- 今日可核验价格：1\n- 策略触发：1\n- 观察标的：7\n\n## 用户策略状态\n\n| 产品 | 触发线 | 强买线 | 状态 | 说明 |\n|---|---:|---:|---|---|\n| Sigma 17-40mm F1.8 DC Art Sony E | ¥4500.00 | ¥4300.00 | STRONG_BUY | 到手价 4299.00 已进入强买/神价区。 |\n\n## 今日真实价格\n\n| 产品 | 平台 | 店铺 | 到手价 | 核验状态 | 来源 |\n|---|---|---|---:|---|---|\n| Sigma 17-40mm F1.8 DC Art Sony E | official | Sigma Global | ¥4299 | VERIFIED_CHECKOUT | https://www.sigma-global.com/en/lenses/a025_17_40_18/ |\n\n## 历史神价库\n\n| 产品 | 历史锚点 | 来源 |\n|---|---:|---|\n| Sigma 17-40mm F1.8 DC Art Sony E | ¥4200–¥4300 | 用户记录：618、88VIP、淘金币、满减叠加，待订单截图验证 |\n\n## 今日线索\n\n- Sigma 17-40mm F1.8 DC Art Sony E: official 有记录，但标注为 **UNVERIFIED**，不可作为确定到手价。\n- Tamron 17-70mm F2.8 Sony E: 暂无采集记录。\n- Sigma 18-50mm F2.8 DC DN Sony E: 暂无采集记录。\n- Viltrox 75mm F1.2 Sony E: 暂无采集记录。\n- Sony 35mm F1.8 FE: 暂无采集记录。\n- DJI Pocket 3: 暂无采集记录。\n- iPad Air: 暂无采集记录。\n\n## AI建议\n\n- **Sigma 17-40mm F1.8 DC Art Sony E**：STRONG_BUY。到手价 4299.00 已进入强买/神价区。\n\n## 视觉行情图\n\n![market chart](/static/charts/market_2026-06-27.png)\n\n## 网站 / API 数据缺口\n\n- sku_id / platform_item_id\n- checkout_price / region / login_state\n- platform_coupon / shop_coupon / vip_discount / coin_discount\n- screenshot_hash / verification_status\n",
           "chart_path": "/static/charts/market_2026-06-27.png",
           "created_at": "2026-06-27 11:55:07",
-          "updated_at": null
+          "updated_at": "2026-06-27 11:55:07"
         },
         {
           "id": 3,
@@ -4252,7 +4252,7 @@
           "markdown_content": "# 摄影数码策略日报｜2026-06-28\n\n## 今日结论\n\n**今日可核验价格 1 条；策略触发 1 次。**\n\n- 今日可核验价格：1\n- 策略触发：1\n- 观察标的：7\n\n## 用户策略状态\n\n| 产品 | 触发线 | 强买线 | 状态 | 说明 |\n|---|---:|---:|---|---|\n| Sigma 17-40mm F1.8 DC Art Sony E | ¥4500.00 | ¥4300.00 | STRONG_BUY | 到手价 4299.00 已进入强买/神价区。 |\n\n## 今日真实价格\n\n| 产品 | 平台 | 店铺 | 到手价 | 核验状态 | 来源 |\n|---|---|---|---:|---|---|\n| Sigma 17-40mm F1.8 DC Art Sony E | official | Sigma Global | ¥4299 | VERIFIED_CHECKOUT | https://www.sigma-global.com/en/lenses/a025_17_40_18/ |\n\n## 历史神价库\n\n| 产品 | 历史锚点 | 来源 |\n|---|---:|---|\n| Sigma 17-40mm F1.8 DC Art Sony E | ¥4200–¥4300 | 用户记录：618、88VIP、淘金币、满减叠加，待订单截图验证 |\n\n## 今日线索\n\n- Sigma 17-40mm F1.8 DC Art Sony E: official 有记录，但标注为 **UNVERIFIED**，不可作为确定到手价。\n- Tamron 17-70mm F2.8 Sony E: official 有记录，但标注为 **VISIBLE_PRICE**，不可作为确定到手价。\n- Sigma 18-50mm F2.8 DC DN Sony E: official 有记录，但标注为 **UNVERIFIED**，不可作为确定到手价。\n- Viltrox 75mm F1.2 Sony E: official_store 有记录，但标注为 **VISIBLE_PRICE**，不可作为确定到手价。\n- Sony 35mm F1.8 FE: official_store 有记录，但标注为 **UNVERIFIED**，不可作为确定到手价。\n- DJI Pocket 3: official_store 有记录，但标注为 **VISIBLE_PRICE**，不可作为确定到手价。\n- iPad Air: official_store 有记录，但标注为 **VISIBLE_PRICE**，不可作为确定到手价。\n\n## AI建议\n\n- **Sigma 17-40mm F1.8 DC Art Sony E**：STRONG_BUY。到手价 4299.00 已进入强买/神价区。\n\n## 视觉行情图\n\n![market chart](/static/charts/market_2026-06-28.png)\n\n## 网站 / API 数据缺口\n\n- sku_id / platform_item_id\n- checkout_price / region / login_state\n- platform_coupon / shop_coupon / vip_discount / coin_discount\n- screenshot_hash / verification_status\n",
           "chart_path": "/static/charts/market_2026-06-28.png",
           "created_at": "2026-06-28 03:04:27",
-          "updated_at": null
+          "updated_at": "2026-06-28 03:04:27"
         },
         {
           "id": 4,

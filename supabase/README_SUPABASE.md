@@ -1,42 +1,163 @@
 # Supabase V0.12
 
-Production project:
+This directory contains the Supabase database, seed, and Edge Function package for the V0.12 Camera Market Strategy System.
+
+## Production Project
 
 - Project ref: `woywgfoqurumrkyoznnb`
 - Region: `ap-southeast-2`
-- Status verified by Codex: `ACTIVE_HEALTHY`
 - Database: PostgreSQL 17
+- Verified status: `ACTIVE_HEALTHY`
 
-What is included:
+## Directory Layout
 
-- `migrations/20260629123000_v012_initial_schema.sql` creates the V0.12 schema, RLS read policies, storage buckets, verification audit trigger, and triggered-signal trust trigger.
-- `seeds/local_v012_seed.sql` and `seeds/local_v012_seed.json` are generated from `backend/camera_market.db` by `scripts/export-sqlite-to-supabase-v012.py`.
-- `functions/*` contains deployed Edge Functions for price verification, price invalidation, strategy evaluation, product refresh events, notifications, daily reports, and source health records.
-
-Verified remotely:
-
-- All 20 V0.12 public tables exist.
-- Storage buckets exist: `price-evidence`, `product-images`, `report-exports`.
-- Rollback transaction test created one temporary verification update and confirmed `verification_audits` receives a row.
-- Rollback transaction test confirmed triggered signals require a `VERIFIED_CHECKOUT` price record.
-- 7 Edge Functions are deployed with `verify_jwt=true`.
-- The temporary `import-v012-seed` function was used once, then redeployed as JWT-protected and disabled.
-- Supabase migration history contains only `v012_initial_schema`; the accidental `v012_verify_noop` history row was removed.
-
-Data seed status:
-
-- Local SQLite source was exported and imported successfully: 20 products, 23 product listings, 102 price records, 20 strategies, 23 signals, 7 flow runs, 4 daily reports, and 5 strategy backtests.
-- Cloud verification confirmed `bad_triggered_signals = 0`.
-- The SQL seed remains available for replay if credentials are available:
-
-```powershell
-psql "<SUPABASE_DATABASE_URL>" -f supabase/seeds/local_v012_seed.sql
+```text
+supabase/
+  functions/                         Edge Functions
+  migrations/                        V0.12 PostgreSQL schema
+  seeds/                             SQL and JSON exports from local SQLite
+  README_SUPABASE.md                 This guide
+  ROLLBACK_V012.md                   Rollback notes
 ```
 
-Regenerate the seed:
+## What The Migration Creates
+
+`migrations/20260629123000_v012_initial_schema.sql` creates:
+
+- V0.12 public tables
+- read policies for frontend-safe data access
+- storage buckets: `price-evidence`, `product-images`, `report-exports`
+- verification audit trigger
+- triggered-signal trust trigger
+- indexes used by product, price, strategy, report, and source-health views
+
+## Important Naming Difference
+
+Local SQLite uses:
+
+```text
+platform_listings
+```
+
+Supabase/Postgres uses:
+
+```text
+product_listings
+```
+
+The FastAPI runtime now selects the correct table name from `DATABASE_URL`, so the same backend code can boot against either local SQLite or Supabase/Postgres.
+
+## Real Seed Status
+
+The current real local dataset was exported and imported into Supabase:
+
+- `products`: 20
+- `product_listings`: 23
+- `price_records`: 102
+- `strategies`: 20
+- `signals`: 23
+- `daily_reports`: 4
+- `flow_runs`: 7
+- `strategy_backtests`: 5
+
+Cloud verification confirmed:
+
+```text
+bad_triggered_signals = 0
+```
+
+That means triggered signals are backed by `VERIFIED_CHECKOUT` price records.
+
+## Seed Files
+
+- `seeds/local_v012_seed.sql`
+- `seeds/local_v012_seed.json`
+
+These are generated from local SQLite by:
 
 ```powershell
 python scripts/export-sqlite-to-supabase-v012.py --summary
 python scripts/export-sqlite-to-supabase-v012.py --out supabase/seeds/local_v012_seed.sql
 python scripts/export-sqlite-to-supabase-v012.py --json-out supabase/seeds/local_v012_seed.json
 ```
+
+Replay the SQL seed when you have a Supabase database URL:
+
+```powershell
+psql "<SUPABASE_DATABASE_URL>" -f supabase/seeds/local_v012_seed.sql
+```
+
+## Edge Functions
+
+The deployed V0.12 function set includes:
+
+- `verify-price`
+- `invalidate-price`
+- `evaluate-strategy`
+- `refresh-product`
+- `send-notification`
+- `generate-daily-report`
+- `record-source-health`
+
+The temporary `import-v012-seed` function was used once for seed import, then disabled and protected with JWT.
+
+## Migration History
+
+Supabase migration history should contain:
+
+```text
+v012_initial_schema
+```
+
+The accidental no-op history row `v012_verify_noop` was removed.
+
+## Trust And Security Rules
+
+- `VERIFIED_CHECKOUT` is the only price status allowed to trigger strategy action.
+- `VISIBLE_PRICE`, `UNVERIFIED`, and `STALE` are evidence only.
+- `verification_audits` should receive rows when verification status changes.
+- Edge Functions should stay JWT-protected unless a function is deliberately designed as public.
+- Service-role keys and database passwords must not be committed.
+
+## Basic Remote Checks
+
+When CLI access is available, verify:
+
+```sql
+select count(*) from public.products;
+select count(*) from public.product_listings;
+select count(*) from public.price_records;
+select count(*) from public.signals;
+```
+
+Trust check:
+
+```sql
+select count(*) as bad_triggered_signals
+from public.signals s
+left join public.price_records p on p.id = s.price_record_id
+where s.triggered = true
+  and coalesce(p.verification_status, '') <> 'VERIFIED_CHECKOUT';
+```
+
+Expected:
+
+```text
+bad_triggered_signals = 0
+```
+
+## Local Runtime Versus Supabase Runtime
+
+For local self-use, SQLite is still the simplest runtime:
+
+```env
+DATABASE_URL=sqlite:///backend/camera_market.db
+```
+
+For cloud Postgres/Supabase runtime, use a Postgres URL:
+
+```env
+DATABASE_URL=postgresql://...
+```
+
+Before switching production traffic to Supabase, run backend tests and browser-smoke the product, opportunity, verification, strategy, and source pages.

@@ -15,8 +15,8 @@ export function RouteStage({ children }: { children: ReactNode }) {
   const reduced = useReducedMotion()
   return <motion.div
     key={pathname}
-    initial={reduced ? false : { opacity: 0, y: 14, filter: 'blur(7px)' }}
-    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+    initial={reduced ? false : { opacity: 0, y: 14 }}
+    animate={{ opacity: 1, y: 0 }}
     transition={{ duration: reduced ? 0 : .45 }}
     className="route-stage"
   >

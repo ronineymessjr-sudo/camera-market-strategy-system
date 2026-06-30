@@ -28,8 +28,9 @@ async function loadProduct(id: string) {
   }
 }
 
-export default async function ProductDetail({ params }: { params: { id: string } }) {
-  const data = await loadProduct(params.id)
+export default async function ProductDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const data = await loadProduct(id)
   if (!data) {
     return <div className="panel empty">没有找到该商品，或后端服务暂时不可用。</div>
   }

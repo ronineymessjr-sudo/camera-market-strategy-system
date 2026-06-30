@@ -24,12 +24,13 @@
 - A persistent server or VM
 - A real public domain bound to that server
 - If you want immediate data continuity on the full runtime, a copy of the current `backend/camera_market.db`
+- If you want the full runtime to use Supabase directly, the production `DATABASE_URL`
 
 ## Important schema note
 
-- The current FastAPI runtime still uses the ORM table name `platform_listings`.
-- The V0.12 Supabase cloud schema uses `product_listings`.
-- That means the app can migrate to a real cloud server immediately, but a direct runtime cutover from SQLite to the current Supabase Postgres database still needs one schema compatibility pass first.
+- The FastAPI runtime now auto-selects the listing table name from `DATABASE_URL`.
+- Local SQLite uses `platform_listings`.
+- Supabase/Postgres uses `product_listings`, which matches the V0.12 cloud schema.
 
 ## Recommended cutover order
 

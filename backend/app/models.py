@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .database import Base
+from .database import Base, LISTING_TABLE_NAME
 
 
 class Product(Base):
@@ -28,7 +28,7 @@ class Product(Base):
 
 
 class PlatformListing(Base):
-    __tablename__ = "platform_listings"
+    __tablename__ = LISTING_TABLE_NAME
     __table_args__ = (UniqueConstraint("product_id", "url", name="uq_listing_product_url"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -49,7 +49,7 @@ class PriceRecord(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
-    listing_id: Mapped[int | None] = mapped_column(ForeignKey("platform_listings.id"), index=True)
+    listing_id: Mapped[int | None] = mapped_column(ForeignKey(f"{LISTING_TABLE_NAME}.id"), index=True)
     platform: Mapped[str | None] = mapped_column(String(40), index=True)
     seller_name: Mapped[str | None] = mapped_column(Text)
     title: Mapped[str | None] = mapped_column(Text)
@@ -165,7 +165,7 @@ class ExternalOffer(Base):
     provider: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     external_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), index=True)
-    listing_id: Mapped[int | None] = mapped_column(ForeignKey("platform_listings.id"), index=True)
+    listing_id: Mapped[int | None] = mapped_column(ForeignKey(f"{LISTING_TABLE_NAME}.id"), index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     product_url: Mapped[str | None] = mapped_column(Text)
     seller_name: Mapped[str | None] = mapped_column(Text)

@@ -52,5 +52,5 @@ curl https://your-domain.example/api/system/health
 
 - This path is the fastest way to stop depending on local tunnels while preserving the current application behavior.
 - The runtime still uses the existing FastAPI APIs. Supabase Edge Functions remain useful for asynchronous or admin workflows, but they are not yet a full API replacement.
-- A direct runtime switch to the current Supabase Postgres database is not zero-risk yet because the backend ORM still expects `platform_listings` while the V0.12 cloud schema uses `product_listings`.
+- The backend runtime now auto-selects `platform_listings` for local SQLite and `product_listings` for Supabase/Postgres, so the same codebase can boot against either schema.
 - If you want Cloudflare in front of this server, point your DNS record through Cloudflare after the server is up.

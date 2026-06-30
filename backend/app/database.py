@@ -11,6 +11,14 @@ engine = create_engine(settings.database_url, pool_pre_ping=True, connect_args=c
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
+def get_listing_table_name(database_url: str | None = None) -> str:
+    url = (database_url or settings.database_url).lower()
+    return "product_listings" if url.startswith(("postgresql://", "postgres://")) else "platform_listings"
+
+
+LISTING_TABLE_NAME = get_listing_table_name()
+
+
 class Base(DeclarativeBase):
     pass
 

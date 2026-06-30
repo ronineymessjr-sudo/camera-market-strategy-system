@@ -26,18 +26,45 @@ export default async function Home() {
   const buySignals = candidates.filter((row) => row.is_buy_signal)
   const verifiedProducts = products.filter((row) => row.latest_verified)
   const reviewQueue = products.filter((row) => row.latest_clue && !row.latest_verified)
+  const topCandidate = candidates[0]
 
   return <div className="dashboard-stage">
     <AmbientField />
     <div className="dashboard-content">
-      <div className="page-title operator-title">
-        <div>
-          <span className="eyebrow">V0.12 / REAL DATA OPS</span>
-          <h1>Camera Market Command Center</h1>
-          <p>Verified checkout evidence, strategy signals, source health, and daily self-use flow in one operating surface.</p>
+      <section className="opening-hero">
+        <div className="opening-copy">
+          <span className="eyebrow">V0.12 / VERIFIED PRICE INTELLIGENCE</span>
+          <h1>Camera Market<br />Command Center</h1>
+          <p>Bring back the drama at the door, then get straight to the work: checkout evidence, strategy signals, source health, and daily operator flow.</p>
+          <div className="opening-actions">
+            <DailyRunButton />
+            <Link className="hero-secondary" href="/verification">Review evidence</Link>
+          </div>
         </div>
-        <DailyRunButton />
-      </div>
+        <div className="opening-visual" aria-label="Camera market signal overview">
+          <div className="device-plate">
+            <div className="lens-orbit">
+              <span />
+              <i />
+            </div>
+            <div className="signal-card primary">
+              <small>Top candidate</small>
+              <b>{topCandidate?.product.name ?? 'Waiting for real flow'}</b>
+              <em>{topCandidate?.status ?? 'NO_SIGNAL'}</em>
+            </div>
+            <div className="signal-card secondary">
+              <small>Trust gate</small>
+              <b>VERIFIED_CHECKOUT</b>
+              <em>required for action</em>
+            </div>
+          </div>
+        </div>
+        <div className="opening-stats">
+          <div><span>Executable</span><strong>{buySignals.length}</strong><small>signals</small></div>
+          <div><span>Trusted</span><strong>{verifiedProducts.length}</strong><small>products</small></div>
+          <div><span>Review</span><strong>{stats?.needs_review ?? reviewQueue.length}</strong><small>clues</small></div>
+        </div>
+      </section>
 
       <div className="metrics">
         <MetricCard label="Executable signals" value={<AnimatedNumber value={buySignals.length} />} note="Triggered only by checkout-verified evidence" icon="01" tone="amber" />

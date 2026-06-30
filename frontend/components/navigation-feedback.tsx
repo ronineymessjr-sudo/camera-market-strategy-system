@@ -7,15 +7,15 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 const routeNames: Record<string, string> = {
-  '/': '概览',
-  '/products': '商品',
-  '/opportunities': '机会',
-  '/verification': '核验',
-  '/notifications': '提醒',
-  '/history': '历史',
-  '/reports': '日报',
-  '/strategies': '策略',
-  '/sources': '数据源',
+  '/': 'Command',
+  '/products': 'Products',
+  '/opportunities': 'Opportunities',
+  '/verification': 'Verification',
+  '/notifications': 'Notifications',
+  '/history': 'History',
+  '/reports': 'Reports',
+  '/strategies': 'Strategy Lab',
+  '/sources': 'Source Atlas',
 }
 
 export function RouteProgress() {
@@ -55,8 +55,8 @@ export function Breadcrumbs() {
     }
   })
 
-  return <nav className="breadcrumbs" aria-label="面包屑导航">
-    <Link href="/">概览</Link>
+  return <nav className="breadcrumbs" aria-label="Breadcrumb">
+    <Link href="/">Command</Link>
     {crumbs.map((crumb) => <span key={crumb.href}>
       <i>/</i>
       {crumb.current ? <b aria-current="page">{crumb.label}</b> : <Link href={crumb.href}>{crumb.label}</Link>}
@@ -85,7 +85,7 @@ export function ClickableSurface({
   >
     <Link href={href} className="surface-link" aria-label={ariaLabel}>
       {children}
-      <span className="surface-arrow" aria-hidden="true">↗</span>
+      <span className="surface-arrow" aria-hidden="true">Open</span>
     </Link>
   </motion.div>
 }

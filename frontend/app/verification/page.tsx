@@ -1,10 +1,24 @@
+import { VerificationCockpit } from '@/components/experience-modules'
 import { VerifyPriceForm } from '@/components/verify-price-form'
 import { MetricCard, SectionCard, StatusPill } from '@/components/dashboard-ui'
 import { api } from '@/lib/api'
-import { ageLabel, bestPrice, confidence, money } from '@/lib/format'
 import type { Price, PriceStats } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
+
+function cash(value?: number | null, fallback = 'No price') {
+  if (typeof value !== 'number' || Number.isNaN(value)) return fallback
+  return `CNY ${Math.round(value).toLocaleString('en-US')}`
+}
+
+function best(price?: Price | null) {
+  return price?.checkout_price ?? price?.promotion_price ?? price?.list_price ?? null
+}
+
+function confidence(value?: number | null) {
+  if (typeof value !== 'number') return 'Pending'
+  return `${Math.round(value * 100)}%`
+}
 
 async function loadQueue() {
   try {
@@ -23,37 +37,52 @@ export default async function Verification() {
   const first = queue[0]
 
   return <>
-    <div className="page-title"><div><h1>线索核验中心</h1><p>核验抓取到的价格线索，确保数据准确可靠</p></div></div>
-    <div className="metrics">
-      <MetricCard label="待核验" value={stats?.needs_review ?? queue.length} />
-      <MetricCard label="已通过" value={stats?.verified_checkout ?? 0} tone="green" />
-      <MetricCard label="可见价线索" value={stats?.visible_price ?? 0} tone="amber" />
-      <MetricCard label="无效记录" value={stats?.invalid ?? 0} tone="cyan" />
+    <div className="page-title">
+      <div>
+        <span className="eyebrow">VERIFICATION</span>
+        <h1>Verification Cockpit</h1>
+        <p>Only checkout-verified records can trigger strategy action. Everything else stays evidence.</p>
+      </div>
     </div>
-    <div className="detail-grid">
-      <SectionCard title={`${queue.length} 条待核验线索`}>
-        <div className="list">{queue.length ? queue.map((price) => <div className="list-row" key={price.id}>
-          <div className="product-cell">
-            <div className="thumb">◉</div>
-            <div><strong>{price.title || `商品 #${price.product_id}`}</strong><small>{price.platform || '未知平台'} · 抓取价格 {money(bestPrice(price))} · {ageLabel(price.captured_at)}</small></div>
+
+    <div className="metrics">
+      <MetricCard label="Needs review" value={stats?.needs_review ?? queue.length} />
+      <MetricCard label="Checkout verified" value={stats?.verified_checkout ?? 0} tone="green" />
+      <MetricCard label="Visible clues" value={stats?.visible_price ?? 0} tone="amber" />
+      <MetricCard label="Invalid records" value={stats?.invalid ?? 0} tone="cyan" />
+    </div>
+
+    <VerificationCockpit queue={queue} stats={stats} />
+
+    <div className="detail-grid" style={{ marginTop: 16 }}>
+      <SectionCard title={`${queue.length} clues waiting for checkout review`}>
+        <div className="list">{queue.length ? queue.map((price) => <div className="list-row verification-row" key={price.id}>
+          <div>
+            <strong>{price.title || `Product #${price.product_id}`}</strong>
+            <small>{price.platform || 'Unknown platform'} · captured {cash(best(price))}</small>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="verification-row-actions">
             <StatusPill tone={(price.confidence_score ?? 0) > 0.85 ? 'green' : 'amber'}>{confidence(price.confidence_score)}</StatusPill>
           </div>
-        </div>) : <div className="empty">当前没有待核验线索。运行完整流程后，低置信或未验证价格会进入这里。</div>}</div>
+        </div>) : <div className="empty">The review lane is clear. Run the real data flow to discover fresh clues.</div>}</div>
       </SectionCard>
+
       <aside>
-        <SectionCard title="线索详情">
+        <SectionCard title="Current evidence">
           {first ? <>
-            <div className="hero-product"><div className="lens-visual" /><div><strong>{first.title || `商品 #${first.product_id}`}</strong><p className="muted">{first.platform || '未知平台'}</p></div></div>
-            <div className="form-row"><label>原始价格文本</label><b style={{ color: '#59aaff' }}>{first.raw_price_text || money(bestPrice(first))}</b></div>
-            <div className="form-row"><label>提取价格</label><b>{money(bestPrice(first))}</b></div>
-            <div className="form-row"><label>货币</label><span>{first.currency || 'CNY'}</span></div>
-            <div className="form-row"><label>置信度</label><StatusPill tone={(first.confidence_score ?? 0) > 0.85 ? 'green' : 'amber'}>{confidence(first.confidence_score)}</StatusPill></div>
-            <div className="form-row"><label>促销 / 优惠</label><span>{first.coupon_text || '暂无'}</span></div>
-            {first.source_url && <p><a className="text-btn" href={first.source_url} target="_blank" rel="noreferrer">打开来源 →</a></p>}
+            <div className="evidence-summary">
+              <span className="experience-chip">{first.verification_status}</span>
+              <h3>{first.title || `Product #${first.product_id}`}</h3>
+              <p>{first.platform || 'Unknown platform'}</p>
+            </div>
+            <div className="form-row"><label>Raw price text</label><b>{first.raw_price_text || cash(best(first))}</b></div>
+            <div className="form-row"><label>Extracted price</label><b>{cash(best(first))}</b></div>
+            <div className="form-row"><label>Currency</label><span>{first.currency || 'CNY'}</span></div>
+            <div className="form-row"><label>Confidence</label><StatusPill tone={(first.confidence_score ?? 0) > 0.85 ? 'green' : 'amber'}>{confidence(first.confidence_score)}</StatusPill></div>
+            <div className="form-row"><label>Coupon context</label><span>{first.coupon_text || 'None captured'}</span></div>
+            {first.source_url && <p><a className="text-btn" href={first.source_url} target="_blank" rel="noreferrer">Open source page</a></p>}
             <VerifyPriceForm price={first} />
-          </> : <div className="empty">暂无待处理线索。</div>}
+          </> : <div className="empty">No pending evidence right now.</div>}
         </SectionCard>
       </aside>
     </div>

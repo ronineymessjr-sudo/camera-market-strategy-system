@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from time import time
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc
@@ -9,11 +11,17 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.database import get_db
+from app.product_refresh_cache import ProductRefreshCache
 from app.services.price_analytics import calculate_product_analytics
 from app.services.signal_service import latest_verified_price
 
 
 router = APIRouter(prefix="/api/products", tags=["products"])
+_PRODUCT_SNAPSHOT_CACHE: ProductRefreshCache[dict[str, Any]] = ProductRefreshCache(
+    ttl_seconds=300,
+    stale_seconds=900,
+    clock=time,
+)
 
 
 @router.get("", response_model=list[schemas.ProductOut])
@@ -112,6 +120,27 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
     return _require_product(db, product_id)
 
 
+@router.get("/{product_id}/refresh-snapshot", response_model=schemas.ProductRefreshSnapshotOut)
+async def product_refresh_snapshot(
+    product_id: int,
+    force_refresh: bool = False,
+    db: Session = Depends(get_db),
+):
+    result = await _PRODUCT_SNAPSHOT_CACHE.get(
+        _product_snapshot_key(product_id),
+        lambda: _load_product_snapshot(db, product_id),
+        force_refresh=force_refresh,
+    )
+    return {
+        **result.value,
+        "refreshed_at": result.refreshed_at,
+        "next_refresh_at": result.next_refresh_at,
+        "refresh_in_seconds": result.refresh_in_seconds,
+        "source": result.source,
+        "stale": result.stale,
+    }
+
+
 @router.patch("/{product_id}", response_model=schemas.ProductOut)
 def update_product(product_id: int, payload: schemas.ProductUpdate, db: Session = Depends(get_db)):
     item = _require_product(db, product_id)
@@ -128,6 +157,7 @@ def update_product(product_id: int, payload: schemas.ProductUpdate, db: Session 
         db.rollback()
         raise HTTPException(409, "Product with the same name already exists") from exc
     db.refresh(item)
+    _invalidate_product_snapshot(product_id)
     return item
 
 
@@ -144,6 +174,7 @@ def archive_product(product_id: int, db: Session = Depends(get_db)):
     )
     db.commit()
     db.refresh(item)
+    _invalidate_product_snapshot(product_id)
     return item
 
 
@@ -154,6 +185,7 @@ def restore_product(product_id: int, db: Session = Depends(get_db)):
     item.archived_at = None
     db.commit()
     db.refresh(item)
+    _invalidate_product_snapshot(product_id)
     return item
 
 
@@ -178,6 +210,7 @@ def create_listing(product_id: int, payload: schemas.ListingCreate, db: Session 
         db.rollback()
         raise HTTPException(409, "The product already has this source URL") from exc
     db.refresh(item)
+    _invalidate_product_snapshot(product_id)
     return item
 
 
@@ -200,6 +233,7 @@ def update_listing(
         db.rollback()
         raise HTTPException(409, "The product already has this source URL") from exc
     db.refresh(item)
+    _invalidate_product_snapshot(product_id)
     return item
 
 
@@ -212,7 +246,40 @@ def deactivate_listing(product_id: int, listing_id: int, db: Session = Depends(g
     item.is_active = False
     db.commit()
     db.refresh(item)
+    _invalidate_product_snapshot(product_id)
     return item
+
+
+def _product_snapshot_key(product_id: int) -> str:
+    return f"product:{product_id}"
+
+
+def _invalidate_product_snapshot(product_id: int) -> None:
+    _PRODUCT_SNAPSHOT_CACHE.invalidate(_product_snapshot_key(product_id))
+
+
+async def _load_product_snapshot(db: Session, product_id: int) -> dict[str, Any]:
+    product = _require_product(db, product_id)
+    listings = (
+        db.query(models.PlatformListing)
+        .filter(models.PlatformListing.product_id == product_id, models.PlatformListing.is_active.is_(True))
+        .order_by(models.PlatformListing.id)
+        .all()
+    )
+    return {
+        "product": schemas.ProductOut.model_validate(product).model_dump(mode="json"),
+        "listings": [schemas.ListingOut.model_validate(listing).model_dump(mode="json") for listing in listings],
+        "latest_any": _dump_optional_price(_latest_price(db, product_id)),
+        "latest_verified": _dump_optional_price(_latest_price(db, product_id, verified=True)),
+        "latest_clue": _dump_optional_price(_latest_price(db, product_id, clue=True)),
+        "active_listing_count": len(listings),
+    }
+
+
+def _dump_optional_price(price: models.PriceRecord | None) -> dict[str, Any] | None:
+    if price is None:
+        return None
+    return schemas.PriceOut.model_validate(price).model_dump(mode="json")
 
 
 def _require_product(db: Session, product_id: int) -> models.Product:

@@ -20,6 +20,7 @@ from app.crawler.generic import crawl_page_with_browser, screenshot_filename
 
 LOG_DIR = Path(__file__).resolve().parents[3] / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+DEFAULT_PLATFORM_LIMITS = {"taobao": 2, "pdd": 2, "jd": 4, "generic": 6}
 
 
 @dataclass(slots=True)
@@ -84,6 +85,33 @@ async def crawl_listing_snapshot(browser, listing: ListingSnapshot, semaphore: a
         )
 
 
+def _platform_key(platform: str | None) -> str:
+    normalized = (platform or "generic").strip().lower()
+    if "taobao" in normalized or "tmall" in normalized:
+        return "taobao"
+    if "pdd" in normalized or "pinduoduo" in normalized:
+        return "pdd"
+    if normalized in {"jd", "jingdong"} or "jd.com" in normalized:
+        return "jd"
+    return "generic"
+
+
+def _platform_limits() -> dict[str, int]:
+    limits = DEFAULT_PLATFORM_LIMITS.copy()
+    for item in settings.crawler_platform_concurrency.split(","):
+        if ":" not in item:
+            continue
+        key, value = item.split(":", 1)
+        key = key.strip().lower()
+        try:
+            limit = int(value.strip())
+        except ValueError:
+            continue
+        if key and limit > 0:
+            limits[key] = limit
+    return limits
+
+
 async def run_crawl_batch(
     db: Session,
     *,
@@ -137,13 +165,24 @@ async def run_crawl_batch(
                     continue
         snapshots.append(ListingSnapshot(listing.id, listing.product_id, listing.platform, listing.seller_name, listing.url))
 
-    semaphore = asyncio.Semaphore(concurrency)
+    global_semaphore = asyncio.Semaphore(concurrency)
+    platform_semaphores = {
+        key: asyncio.Semaphore(max(1, min(limit, concurrency)))
+        for key, limit in _platform_limits().items()
+    }
+
+    async def crawl_with_limits(listing: ListingSnapshot) -> tuple[ListingSnapshot, CrawlResult]:
+        platform_key = _platform_key(listing.platform)
+        platform_semaphore = platform_semaphores.get(platform_key, platform_semaphores["generic"])
+        async with global_semaphore:
+            return await crawl_listing_snapshot(browser, listing, platform_semaphore)
+
     if snapshots:
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=settings.crawler_headless)
             try:
                 results = await asyncio.gather(
-                    *(crawl_listing_snapshot(browser, listing, semaphore) for listing in snapshots),
+                    *(crawl_with_limits(listing) for listing in snapshots),
                     return_exceptions=False,
                 )
             finally:
@@ -193,6 +232,7 @@ async def run_crawl_batch(
         "run_id": run.id,
         "duration_seconds": duration,
         "concurrency": concurrency,
+        "platform_concurrency": _platform_limits(),
         "skipped_listing_ids": skipped,
         "failures": failures,
         "items": log_items,
@@ -206,7 +246,12 @@ async def run_crawl_batch(
     run.failure_count = len(failures)
     run.skipped_count = len(skipped)
     run.details_json = json.dumps(
-        {"concurrency": concurrency, "record_ids": [record.id for record in records], "failures": failures},
+        {
+            "concurrency": concurrency,
+            "platform_concurrency": _platform_limits(),
+            "record_ids": [record.id for record in records],
+            "failures": failures,
+        },
         ensure_ascii=False,
     )
     run.log_path = str(log_path)

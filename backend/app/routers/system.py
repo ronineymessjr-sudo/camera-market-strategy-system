@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/system", tags=["system"])
 
 @router.get("/health")
 def health():
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.12.1"}
 
 
 @router.get("/last-flow", response_model=schemas.FlowRunOut | None)

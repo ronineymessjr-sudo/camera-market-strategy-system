@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     frontend_origins: str = "http://127.0.0.1:3000,http://localhost:3000"
 
     crawler_concurrency: int = 3
+    crawler_platform_concurrency: str = "taobao:2,pdd:2,jd:4,generic:6"
     crawler_timeout_ms: int = 45_000
     crawler_min_interval_minutes: int = 30
     crawler_retries: int = 1

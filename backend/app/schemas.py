@@ -228,6 +228,20 @@ class ProductOverviewOut(BaseModel):
     analytics: PriceAnalyticsOut | None = None
 
 
+class ProductRefreshSnapshotOut(BaseModel):
+    product: ProductOut
+    listings: list[ListingOut] = []
+    latest_any: PriceOut | None = None
+    latest_verified: PriceOut | None = None
+    latest_clue: PriceOut | None = None
+    active_listing_count: int = 0
+    refreshed_at: float
+    next_refresh_at: float
+    refresh_in_seconds: int
+    source: str
+    stale: bool
+
+
 class FlowRunOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

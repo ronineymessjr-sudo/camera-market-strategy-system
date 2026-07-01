@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.crawler.generic import crawl_generic_page, screenshot_filename
+from app.concurrency_guard import BusyError, GLOBAL_LOCKS
 from app.database import get_db
+from app.routers.products import invalidate_product_snapshot
 from app.services.crawler_runner import run_crawl_batch
 from app.services.scheduler import scheduler_status, start_scheduler, stop_scheduler
 from app.services.signal_service import refresh_signals_for_product
@@ -33,6 +35,7 @@ def create_price(payload: schemas.PriceCreate, db: Session = Depends(get_db)):
     db.refresh(item)
     if item.verification_status == "VERIFIED_CHECKOUT":
         refresh_signals_for_product(db, item.product_id, item)
+    invalidate_product_snapshot(item.product_id)
     return item
 
 
@@ -108,6 +111,7 @@ def verify_checkout(price_id: int, payload: schemas.VerifyCheckoutRequest, db: S
     db.commit()
     db.refresh(item)
     refresh_signals_for_product(db, item.product_id, item)
+    invalidate_product_snapshot(item.product_id)
     return item
 
 
@@ -126,6 +130,7 @@ def invalidate_price(price_id: int, payload: schemas.InvalidatePriceRequest, db:
     db.commit()
     db.refresh(item)
     refresh_signals_for_product(db, item.product_id)
+    invalidate_product_snapshot(item.product_id)
     return item
 
 
@@ -139,6 +144,7 @@ async def crawl_listing(listing_id: int, db: Session = Depends(get_db)):
     db.add(record)
     db.commit()
     db.refresh(record)
+    invalidate_product_snapshot(record.product_id)
     return record
 
 
@@ -151,14 +157,20 @@ async def crawl_all(
     min_interval_minutes: int | None = Query(default=None, ge=0, le=1440),
     db: Session = Depends(get_db),
 ):
-    result = await run_crawl_batch(
-        db,
-        product_id=product_id,
-        platform=platform,
-        force=force,
-        concurrency=concurrency,
-        min_interval_minutes=min_interval_minutes,
-    )
+    try:
+        async with GLOBAL_LOCKS.acquire(_crawl_lock_key(product_id, platform), timeout=0.1):
+            result = await run_crawl_batch(
+                db,
+                product_id=product_id,
+                platform=platform,
+                force=force,
+                concurrency=concurrency,
+                min_interval_minutes=min_interval_minutes,
+            )
+    except BusyError as exc:
+        raise HTTPException(409, "A crawl is already running for this scope") from exc
+    for product_id in {record.product_id for record in result.records}:
+        invalidate_product_snapshot(product_id)
     return schemas.CrawlAllResponse(
         run=result.run,
         records=result.records,
@@ -192,6 +204,10 @@ def start_scheduler_endpoint():
 def stop_scheduler_endpoint():
     changed = stop_scheduler()
     return {"changed": changed, **scheduler_status()}
+
+
+def _crawl_lock_key(product_id: int | None, platform: str | None) -> str:
+    return f"crawl-all:{product_id or 'all'}:{(platform or 'all').lower()}"
 
 
 def _record_from_crawl(listing: models.PlatformListing, result) -> models.PriceRecord:

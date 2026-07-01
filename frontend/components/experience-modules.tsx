@@ -119,6 +119,13 @@ export function CommandCenter({
 
 export function VerificationCockpit({ queue, stats }: { queue: Price[]; stats?: PriceStats | null }) {
   const first = queue[0]
+  const evidenceSteps = [
+    ['01', 'Visible price', 'Clue'],
+    ['02', 'Checkout review', 'Manual'],
+    ['03', 'Verified checkout', 'Trusted'],
+    ['04', 'Strategy signal', 'Action'],
+  ]
+
   return <section className="experience-band verification-cockpit">
     <div className="experience-head">
       <div>
@@ -135,15 +142,16 @@ export function VerificationCockpit({ queue, stats }: { queue: Price[]; stats?: 
         <small>{stats?.verified_checkout ?? 0} verified checkout records available</small>
       </div>
       <div className="evidence-ladder">
-        {['VISIBLE_PRICE', 'CHECKOUT_REVIEW', 'VERIFIED_CHECKOUT', 'STRATEGY_SIGNAL'].map((step, index) => <div key={step}>
-          <span>{String(index + 1).padStart(2, '0')}</span>
+        {evidenceSteps.map(([index, step, note]) => <div key={step}>
+          <span>{index}</span>
           <b>{step}</b>
+          <small>{note}</small>
         </div>)}
       </div>
       <article className="cockpit-focus">
         <span>Current evidence</span>
         <h3>{first?.title ?? (first ? `Product #${first.product_id}` : 'No pending clue')}</h3>
-        <p>{first ? `${first.platform ?? 'Unknown source'} · ${cash(best(first))} · ${ago(first.captured_at)}` : 'Run the real flow to refill the review lane.'}</p>
+        <p>{first ? `${first.platform ?? 'Unknown source'} / ${cash(best(first))} / ${ago(first.captured_at)}` : 'Run the real flow to refill the review lane.'}</p>
       </article>
     </div>
   </section>
@@ -169,8 +177,8 @@ export function PriceStory({
     return (best(price) ?? Infinity) < (best(winner) ?? Infinity) ? price : winner
   }, null)
   const events = [
-    { label: 'Latest evidence', value: cash(best(latest)), detail: latest ? `${trustLabel(latest)} · ${ago(latest.captured_at)}` : 'No captured price yet' },
-    { label: 'Lowest captured point', value: cash(best(low)), detail: low ? `${low.platform ?? 'Unknown source'} · ${ago(low.captured_at)}` : 'No history yet' },
+    { label: 'Latest evidence', value: cash(best(latest)), detail: latest ? `${trustLabel(latest)} / ${ago(latest.captured_at)}` : 'No captured price yet' },
+    { label: 'Lowest captured point', value: cash(best(low)), detail: low ? `${low.platform ?? 'Unknown source'} / ${ago(low.captured_at)}` : 'No history yet' },
     { label: 'Strategy target', value: cash(strategy?.trigger_price), detail: strategy?.strategy_name ?? 'No active strategy' },
     { label: 'Current trend', value: analytics?.trend ?? 'Unknown', detail: `${analytics?.sample_count ?? 0} samples in window` },
   ]
@@ -234,7 +242,7 @@ export function StrategyLab({ strategies, products }: { strategies: Strategy[]; 
         <span>{String(index + 1).padStart(2, '0')}</span>
         <div>
           <b>{productName(products, strategy.product_id)}</b>
-          <small>{strategy.strategy_name} · {strategy.mode}</small>
+          <small>{strategy.strategy_name} / {strategy.mode}</small>
         </div>
         <strong>{cash(strategy.trigger_price, 'No target')}</strong>
         <em>{strategy.is_active ? 'LIVE' : 'PAUSED'}</em>

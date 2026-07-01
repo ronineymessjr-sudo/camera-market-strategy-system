@@ -18,6 +18,13 @@ const nav = [
   ['Source Atlas', '/sources', '09'],
 ]
 
+const mobileNav = [
+  ['Command', '/', '01'],
+  ['Deals', '/opportunities', '03'],
+  ['Verify', '/verification', '04'],
+  ['Sources', '/sources', '09'],
+]
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname()
   return <AppMotion><div className="app-frame">
@@ -35,6 +42,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="top-actions"><button>All sources</button><button>Last 30d</button><span className="live"><i />API connected</span><div className="avatar">YM</div></div>
       </header>
       <main className="content"><Breadcrumbs /><RouteStage>{children}</RouteStage></main>
+      <nav className="mobile-tabbar" aria-label="Primary mobile navigation">
+        {mobileNav.map(([label, href, icon]) => <Link key={href} href={href} className={path === href || (href !== '/' && path.startsWith(href)) ? 'active' : ''}>
+          <span>{icon}</span>
+          <b>{label}</b>
+        </Link>)}
+      </nav>
     </div>
   </div></AppMotion>
 }

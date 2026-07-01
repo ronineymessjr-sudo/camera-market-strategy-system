@@ -19,3 +19,57 @@ body:before{background:radial-gradient(circle at 18% 8%,#ffffffc9 0,transparent 
 .daily-run .btn-primary,.btn-primary{background:#245cff;border-color:#245cff;color:#fff;box-shadow:0 12px 30px #245cff36}.daily-run span{color:#5e554a}
 @media(max-width:1100px){.opening-hero{grid-template-columns:1fr;min-height:auto}.opening-visual{min-height:420px}.signal-card.primary{left:20px}.signal-card.secondary{right:20px}}
 @media(max-width:720px){body{background:#f4efe5}.app-frame{display:block}.sidebar{display:none}.topbar{background:#f8f3e9}.content{padding:12px}.opening-hero{min-height:auto;margin:0 0 16px;padding:22px 16px;grid-template-columns:1fr;grid-template-rows:auto auto auto;border-radius:16px;background:linear-gradient(180deg,#fbf7ed 0,#eee4d4 55%,#111 56%,#050505 100%)}.opening-copy h1{font-size:48px}.opening-copy p{font-size:14px}.opening-visual{min-height:320px}.device-plate{width:min(92vw,340px);border-radius:22px}.signal-card{position:static;width:auto;margin:10px;background:#0b0b0be6}.signal-card.primary{margin-top:0}.signal-card.secondary{display:none}.opening-stats{grid-template-columns:1fr 1fr 1fr}.opening-stats div{padding:12px}.opening-stats strong{font-size:24px}.searchbox{width:100%}.top-actions{display:none}}
+
+/* V0.12.2 product-design pass: tighten mobile flow and make the desk feel actionable. */
+.mobile-tabbar{display:none}
+.experience-head h2{letter-spacing:-.035em}.experience-head p{font-size:13px;color:#564d42}.radar-row b,.strategy-stack b,.operator-columns b{font-size:13px}.radar-row small,.strategy-stack small,.operator-columns span,.operator-columns p{font-size:11px;color:#5f554a}.evidence-ladder small{display:block;margin-top:8px;color:#766a5b;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.cockpit-focus h3{line-height:1.22}.opening-copy p{font-weight:520}.hero-secondary:hover{background:#111;color:#fff}
+@media(max-width:720px){
+  .content{padding:10px 10px 92px}
+  .breadcrumbs{display:none}
+  .topbar{height:54px;padding:0 8px}
+  .searchbox{min-height:38px;padding:8px 10px;font-size:11px}
+  .searchbox kbd{font-size:9px}
+  .opening-hero{gap:14px;margin-bottom:10px;padding:18px 12px;background:linear-gradient(180deg,#fbf7ed 0,#f0e7d8 52%,#101010 53%,#040404 100%)}
+  .opening-copy h1{margin:12px 0 10px;font-size:43px;line-height:.92}
+  .opening-copy p{font-size:13px;line-height:1.55}
+  .opening-actions{margin-top:16px;gap:8px}
+  .daily-run .btn-primary,.hero-secondary{min-height:36px;padding:0 12px;font-size:10px}
+  .opening-visual{min-height:278px}
+  .device-plate{width:min(86vw,292px)}
+  .signal-card{padding:11px;border-radius:10px}
+  .signal-card b{font-size:12px}
+  .opening-stats{border-radius:11px}
+  .opening-stats div{padding:9px 8px}
+  .opening-stats span,.opening-stats small{font-size:8px;letter-spacing:.08em}
+  .opening-stats strong{font-size:21px}
+  .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 10px}
+  .metric-card{min-height:86px;padding:10px 8px;border-radius:10px;display:block}
+  .metric-card strong{font-size:22px;margin-top:6px}
+  .metric-label{font-size:9px;line-height:1.15}
+  .metric-card small{display:none}
+  .metric-icon{display:none}
+  .experience-band{padding:12px;border-radius:12px;margin:10px 0}
+  .experience-head{margin-bottom:10px}
+  .experience-head h2{font-size:18px;line-height:1.12}
+  .experience-head p{font-size:11px;line-height:1.45}
+  .experience-kicker{font-size:8px}
+  .experience-action,.experience-chip{font-size:8px;padding:7px 9px}
+  .command-grid{gap:8px}
+  .command-priority,.command-stat,.lab-metric,.cockpit-meter,.cockpit-focus,.operator-columns>div{padding:11px}
+  .command-priority{grid-template-columns:22px 1fr;align-items:start}
+  .command-priority strong{grid-column:2;font-size:18px;margin-top:4px}
+  .radar-row,.strategy-stack article{grid-template-columns:22px 1fr auto;padding:10px 0;gap:8px}
+  .radar-row strong,.strategy-stack strong{font-size:10px}
+  .cockpit-meter strong{font-size:42px}
+  .evidence-ladder{grid-template-columns:1fr 1fr;gap:7px}
+  .evidence-ladder div{min-height:72px;padding:10px}
+  .evidence-ladder b{font-size:10px;line-height:1.15}
+  .evidence-ladder small{font-size:8px}
+  .cockpit-focus h3{font-size:17px}
+  .mobile-tabbar{position:fixed;left:10px;right:10px;bottom:10px;z-index:80;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px;border:1px solid #c8bdae;border-radius:18px;background:#fffaf1e8;box-shadow:0 18px 50px #4b3d2a45;backdrop-filter:blur(18px)}
+  .mobile-tabbar a{display:grid;place-items:center;gap:2px;min-height:48px;border-radius:13px;color:#5f554a;text-decoration:none}
+  .mobile-tabbar a span{font-size:9px;color:#918574}
+  .mobile-tabbar a b{font-size:10px}
+  .mobile-tabbar a.active{background:#111;color:#fff}
+  .mobile-tabbar a.active span{color:#d6c8aa}
+}

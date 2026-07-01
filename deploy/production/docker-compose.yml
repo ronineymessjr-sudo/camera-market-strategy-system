@@ -20,9 +20,9 @@ services:
       context: ../../backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/camera_market.db}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
-      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point to Supabase/Postgres in cloud production}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be the public cloud HTTPS URL}
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:?FRONTEND_ORIGINS must be the public cloud HTTPS URL}
       SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-false}
       SCHEDULER_INTERVAL_MINUTES: ${SCHEDULER_INTERVAL_MINUTES:-60}
       CRAWLER_CONCURRENCY: ${CRAWLER_CONCURRENCY:-3}
@@ -85,7 +85,7 @@ services:
     environment:
       INTERNAL_API_BASE_URL: http://backend:8000
       NEXT_PUBLIC_API_BASE: ""
-      NEXT_PUBLIC_SITE_URL: ${PUBLIC_BASE_URL}
+      NEXT_PUBLIC_SITE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be the public cloud HTTPS URL}
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-https://woywgfoqurumrkyoznnb.supabase.co}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
       PORT: 3000

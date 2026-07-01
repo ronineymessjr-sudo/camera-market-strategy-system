@@ -2,6 +2,9 @@
   "name": "camera-market-test-entry",
   "main": "worker.js",
   "compatibility_date": "2026-06-02",
+  "vars": {
+    "APP_URL": "https://example.com"
+  },
   "observability": {
     "enabled": true
   }

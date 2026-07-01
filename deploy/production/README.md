@@ -7,7 +7,7 @@ This folder is the recommended path for running the full Camera Market Strategy 
 - `frontend`: Next.js 16 production server
 - `backend`: FastAPI API server
 - `caddy`: HTTPS reverse proxy for one public domain
-- `database`: persistent SQLite by default, with optional Supabase/Postgres runtime
+- `database`: Supabase/Postgres runtime through `DATABASE_URL`
 
 ## When To Use This
 
@@ -21,7 +21,7 @@ Do not treat temporary tunnel URLs such as `loca.lt` as production. They are use
 2. Docker and the Docker Compose plugin.
 3. A domain pointed to the server.
 4. A completed `.env` file based on `.env.example`.
-5. Optional: the current `backend/camera_market.db` if you want immediate continuity from local SQLite.
+5. Supabase/Postgres database URL and service credentials.
 
 ## One-Time Server Setup
 
@@ -44,30 +44,22 @@ Then fill in:
 - `NEXT_PUBLIC_API_BASE_URL`
 - `INTERNAL_API_BASE_URL`
 - `FRONTEND_ORIGINS`
-- `DATABASE_URL`
+- `DATABASE_URL` pointing to Supabase/Postgres
 
-## Database Choices
-
-### Option A: Persistent SQLite
-
-This is the fastest production cutover and preserves current FastAPI behavior.
-
-Use a value like:
-
-```env
-DATABASE_URL=sqlite:////data/camera_market.db
-```
-
-If you already have local history, copy `backend/camera_market.db` into the backend volume as `/data/camera_market.db` after the first container run creates the volume.
-
-### Option B: Supabase/Postgres
+## Database Runtime
 
 The backend runtime now auto-selects:
 
 - `platform_listings` for SQLite
 - `product_listings` for Postgres/Supabase
 
-That means a Supabase/Postgres `DATABASE_URL` can use the V0.12 schema naming without a backend fork. Before switching production traffic to Supabase, verify all API paths you rely on with the same test commands below.
+Cloud production must use Supabase/Postgres:
+
+```env
+DATABASE_URL=postgresql+psycopg://postgres:[YOUR_DB_PASSWORD]@db.woywgfoqurumrkyoznnb.supabase.co:5432/postgres?sslmode=require
+```
+
+SQLite remains valid only for explicit local development scripts and tests. The production compose file intentionally fails fast if `DATABASE_URL` is missing.
 
 ## Deploy
 
@@ -82,6 +74,7 @@ docker compose --env-file .env up -d --build
 curl -I https://your-domain.example/
 curl https://your-domain.example/api/system/health
 curl https://your-domain.example/api/frontend/bootstrap?product_limit=1
+python ../../scripts/check-cloud-runtime.py
 ```
 
 You should also open these routes in a browser:
@@ -102,6 +95,7 @@ If Cloudflare manages the domain:
 2. Enable proxying only after the server is serving HTTPS correctly.
 3. Keep the Cloudflare Worker as a landing page only if you still want a separate marketing entry.
 4. Route the real app traffic to this Caddy-backed server.
+5. Configure the Worker `APP_URL` variable to the same public cloud URL. Do not point it at `loca.lt`, `trycloudflare.com`, `127.0.0.1`, or any local tunnel.
 
 ## Operational Checks
 

@@ -1,0 +1,113 @@
+name: Cloud Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate cloud runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check cloud-only production config
+        run: python scripts/check-cloud-runtime.py
+      - name: Worker contract tests
+        run: node --test deploy/cloudflare-public/worker.test.mjs
+
+  deploy-worker:
+    name: Deploy Cloudflare Worker
+    needs: validate
+    runs-on: ubuntu-latest
+    if: ${{ vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Deploy public entry Worker
+        working-directory: deploy/cloudflare-public
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          npx wrangler deploy
+          if [ -n "$APP_URL" ]; then
+            printf "%s" "$APP_URL" | npx wrangler secret put APP_URL
+          fi
+
+  deploy-app:
+    name: Deploy cloud app runtime
+    needs: validate
+    runs-on: ubuntu-latest
+    if: ${{ vars.CLOUD_APP_DEPLOY_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload repository to cloud host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.CLOUD_HOST }}
+          username: ${{ secrets.CLOUD_SSH_USER }}
+          key: ${{ secrets.CLOUD_SSH_KEY }}
+          source: "."
+          target: "${{ vars.CLOUD_APP_PATH }}"
+          rm: false
+      - name: Deploy Docker Compose stack on cloud host
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          CLOUD_APP_PATH: ${{ vars.CLOUD_APP_PATH }}
+          SITE_HOST: ${{ vars.SITE_HOST }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+          FRONTEND_ORIGINS: ${{ vars.FRONTEND_ORIGINS }}
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        with:
+          host: ${{ secrets.CLOUD_HOST }}
+          username: ${{ secrets.CLOUD_SSH_USER }}
+          key: ${{ secrets.CLOUD_SSH_KEY }}
+          envs: CLOUD_APP_PATH,SITE_HOST,PUBLIC_BASE_URL,FRONTEND_ORIGINS,DATABASE_URL,SUPABASE_SERVICE_ROLE_KEY,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+          script: |
+            set -eu
+            cd "$CLOUD_APP_PATH"
+            cat > .env.cloud <<EOF
+            SITE_HOST=$SITE_HOST
+            PUBLIC_BASE_URL=$PUBLIC_BASE_URL
+            FRONTEND_ORIGINS=$FRONTEND_ORIGINS
+            DATABASE_URL=$DATABASE_URL
+            SUPABASE_PROJECT_REF=woywgfoqurumrkyoznnb
+            SUPABASE_URL=https://woywgfoqurumrkyoznnb.supabase.co
+            SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
+            NEXT_PUBLIC_SUPABASE_URL=https://woywgfoqurumrkyoznnb.supabase.co
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+            SCHEDULER_ENABLED=false
+            EOF
+            docker compose -p camera-market --env-file .env.cloud config >/dev/null
+            docker compose -p camera-market --env-file .env.cloud up -d --build
+
+  verify-cloud:
+    name: Verify cloud app
+    needs:
+      - deploy-app
+    runs-on: ubuntu-latest
+    if: ${{ vars.CLOUD_APP_DEPLOY_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify HTTPS app endpoints
+        shell: pwsh
+        run: ./scripts/verify-cloud.ps1 -BaseUrl '${{ vars.PUBLIC_BASE_URL }}'

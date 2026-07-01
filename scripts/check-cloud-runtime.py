@@ -6,12 +6,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCAN_FILES = [
+    ROOT / "docker-compose.yml",
     ROOT / "deploy" / "production" / "docker-compose.yml",
     ROOT / "deploy" / "production" / ".env.example",
     ROOT / "deploy" / "production" / "README.md",
     ROOT / "deploy" / "cloudflare-public" / "worker.js",
     ROOT / "deploy" / "cloudflare-public" / "wrangler.jsonc",
     ROOT / "frontend" / "next.config.mjs",
+    ROOT / "scripts" / "deploy-cloud.ps1",
+    ROOT / "scripts" / "verify-cloud.ps1",
 ]
 
 FORBIDDEN = {
@@ -34,6 +37,10 @@ REQUIRED = {
         "APP_URL",
     ),
     "Required production database URL": (
+        ROOT / "docker-compose.yml",
+        "DATABASE_URL must point to Supabase/Postgres",
+    ),
+    "Required deploy production database URL": (
         ROOT / "deploy" / "production" / "docker-compose.yml",
         "DATABASE_URL must point to Supabase/Postgres",
     ),

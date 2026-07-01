@@ -9,12 +9,13 @@ This project tracks camera, lens, and creator-device prices, separates raw price
 - Active branch: `feat/v0.12-supabase-integration`
 - Frontend: Next.js 16 production app
 - Backend: FastAPI + SQLAlchemy
-- Local database: SQLite by default
+- Production database: Supabase/Postgres through `DATABASE_URL`
+- Local SQLite: development/tests only
 - Cloud data layer: Supabase PostgreSQL V0.12 schema and real seed imported
-- Deployment path: Docker Compose + Caddy on a persistent Linux server
+- Deployment path: Docker Compose + Caddy on a persistent Linux server, fronted by Cloudflare DNS/Worker
 - GitHub remote: `git@github.com:ronineymessjr-sudo/camera-market-strategy-system.git`
 
-The Cloudflare Worker in this repository is only a public entry page. The full product runtime is the Next.js + FastAPI stack.
+The Cloudflare Worker in this repository is only a public entry page. The full product runtime is the cloud Next.js + FastAPI stack, backed by Supabase/Postgres. Temporary tunnels and localhost are not production targets.
 
 ## What The Product Does
 
@@ -58,38 +59,31 @@ deploy/production/       Docker Compose + Caddy production deployment package
 docs/                    Architecture, handoff, validation, API, and changelog docs
 ```
 
-## Quick Start On Windows
+## Cloud Deployment
 
 From the repository root:
+
+```powershell
+Copy-Item deploy\production\.env.example .env.cloud
+# Fill .env.cloud with the real domain, Supabase/Postgres DATABASE_URL, and secrets.
+powershell -ExecutionPolicy Bypass -File scripts\deploy-cloud.ps1 -EnvFile .env.cloud
+powershell -ExecutionPolicy Bypass -File scripts\verify-cloud.ps1 -BaseUrl https://your-domain.example
+```
+
+The root `docker-compose.yml` is now cloud-production oriented and refuses to run without a Supabase/Postgres `DATABASE_URL`.
+
+## Local Development Only
+
+Use this only for local debugging, not production:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup-local.ps1
 powershell -ExecutionPolicy Bypass -File scripts\start-local.ps1
 ```
 
-Then open:
-
-- Frontend: `http://127.0.0.1:3000`
-- Backend API docs: `http://127.0.0.1:8000/docs`
-- Health check: `http://127.0.0.1:8000/api/system/health`
-
-If you want to run the services manually:
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-```powershell
-cd frontend
-$env:INTERNAL_API_BASE_URL="http://127.0.0.1:8000"
-npm install
-npm run dev
-```
-
 ## Real Data Workflow
 
-Use this for the normal self-use flow:
+Use this for the local self-use flow only:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\run-real-flow.ps1
@@ -97,7 +91,7 @@ powershell -ExecutionPolicy Bypass -File scripts\run-real-flow.ps1
 
 That workflow is intended to:
 
-1. Ensure local services are available.
+1. Ensure local development services are available.
 2. Apply any local database upgrades.
 3. Crawl active public product sources.
 4. Generate the daily report.

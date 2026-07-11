@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.auth import require_operator
 from app.database import get_db
 from app.services.quant_engine import backtest_strategy, quant_indicators
 
@@ -30,7 +31,7 @@ def indicators(
     )
 
 
-@router.post("/backtests", response_model=schemas.BacktestOut)
+@router.post("/backtests", response_model=schemas.BacktestOut, dependencies=[Depends(require_operator)])
 def backtest(payload: schemas.BacktestRequest, db: Session = Depends(get_db)):
     if not db.get(models.Product, payload.product_id):
         raise HTTPException(404, "Product not found")

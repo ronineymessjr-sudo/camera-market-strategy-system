@@ -173,6 +173,21 @@ export type ProviderStatus = {
   mode: string
 }
 
+export type SourceHealth = {
+  provider: string
+  configured: boolean
+  mode: string
+  status: string
+  last_checked_at?: string | null
+  last_success_at?: string | null
+  last_error?: string | null
+  success_count: number
+  failure_count: number
+  success_rate: number
+  average_latency_ms?: number | null
+  stale: boolean
+}
+
 export type IntegrationRun = {
   id: number
   provider: string
@@ -191,9 +206,32 @@ export type IntegrationRun = {
 export type FrontendBootstrap = {
   generated_at: string
   providers: ProviderStatus[]
+  source_health: SourceHealth[]
+  notifications: Notification[]
   price_stats: PriceStats
   latest_run?: FlowRun | null
   integration_runs: IntegrationRun[]
   selection_candidates: SelectionCandidate[]
   products: ProductOverview[]
+}
+
+export type Notification = {
+  id: number
+  product_id?: number | null
+  signal_id?: number | null
+  type: string
+  title: string
+  body?: string | null
+  status: string
+  created_at: string
+  read_at?: string | null
+}
+
+export type ReviewPage = {
+  items: Price[]
+  total: number
+  page: number
+  page_size: number
+  status_counts: Record<string, number>
+  platforms: string[]
 }

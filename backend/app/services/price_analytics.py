@@ -68,6 +68,10 @@ def calculate_product_analytics(
             models.PriceRecord.product_id == product_id,
             models.PriceRecord.verification_status == "VERIFIED_CHECKOUT",
             models.PriceRecord.checkout_price.isnot(None),
+            db.query(models.PriceEvidence.id).filter(
+                models.PriceEvidence.price_record_id == models.PriceRecord.id,
+                models.PriceEvidence.trusted_for_strategy.is_(True),
+            ).exists(),
             models.PriceRecord.captured_at >= start,
         )
         .order_by(asc(models.PriceRecord.captured_at), asc(models.PriceRecord.id))

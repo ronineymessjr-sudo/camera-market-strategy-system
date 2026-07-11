@@ -1,4 +1,5 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+import { operatorRequest } from '@/lib/operator-api'
 
 export type ProviderStatus = {
   provider: "jd" | "taobao" | "pdd" | string;
@@ -58,7 +59,7 @@ export const apiV04 = {
   bootstrap: () => request<unknown>("/api/frontend/bootstrap"),
   providers: () => request<ProviderStatus[]>("/api/integrations/providers"),
   syncProvider: (provider: string, payload: IntegrationSearchRequest) =>
-    request<unknown>(`/api/integrations/${provider}/sync`, {
+    operatorRequest<unknown>(`/api/jobs/integrations/${provider}`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -66,5 +67,5 @@ export const apiV04 = {
   indicators: (productId: number, windowDays = 180) =>
     request<QuantIndicators>(`/api/quant/products/${productId}/indicators?window_days=${windowDays}`),
   backtest: (payload: Record<string, unknown>) =>
-    request<unknown>("/api/quant/backtests", { method: "POST", body: JSON.stringify(payload) }),
+    operatorRequest<unknown>("/api/quant/backtests", { method: "POST", body: JSON.stringify(payload) }),
 };

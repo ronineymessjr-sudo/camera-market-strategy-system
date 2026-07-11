@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { API_BASE } from '@/lib/api'
+import { operatorRequest } from '@/lib/operator-api'
 
 export function WatchlistCommand() {
   const router = useRouter()
@@ -16,13 +16,10 @@ export function WatchlistCommand() {
     setBusy(true)
     setMessage('')
     try {
-      const response = await fetch(`${API_BASE}/api/watchlist/commands`, {
+      const body = await operatorRequest<{ message: string }>('/api/watchlist/commands', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command }),
       })
-      const body = await response.json()
-      if (!response.ok) throw new Error(body.detail || JSON.stringify(body))
       setMessage(body.message)
       setCommand('')
       router.refresh()

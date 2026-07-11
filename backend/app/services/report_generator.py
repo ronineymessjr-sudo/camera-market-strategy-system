@@ -39,6 +39,10 @@ class ReportGenerator:
             .filter(
                 models.PriceRecord.verification_status == "VERIFIED_CHECKOUT",
                 models.PriceRecord.checkout_price.isnot(None),
+                self.db.query(models.PriceEvidence.id).filter(
+                    models.PriceEvidence.price_record_id == models.PriceRecord.id,
+                    models.PriceEvidence.trusted_for_strategy.is_(True),
+                ).exists(),
                 models.PriceRecord.verified_at >= day_start,
                 models.PriceRecord.verified_at < day_end,
             )

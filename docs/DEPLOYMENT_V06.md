@@ -8,7 +8,7 @@ Date: 2026-06-29
 - Frontend V0.6 production proxy build runs locally on `http://127.0.0.1:3003`.
 - Temporary public test URL: `https://camera-market-test-r9.loca.lt`.
 - Stable Cloudflare public entry: `https://camera-market-test-entry.photomagic.workers.dev`.
-- Cloudflare Worker version: `c4a495e2-5ec3-49cf-af08-4687a9c7a0b8`.
+- Cloudflare Worker version: `c36faf33-140c-4d07-af6c-ed7f432bd53b`.
 - Public URL verified:
   - `/`: `200`
   - `/api/system/health`: `200`
@@ -23,6 +23,11 @@ Date: 2026-06-29
   - Local Worker `/health`: `200`
   - Frontend local production `/`: `200`, TTFB about `0.161s`
   - Temporary localtunnel public URL returned `408` during the latest check.
+- V0.9 motion-system verification:
+  - Frontend production build passed.
+  - Backend test suite passed: `19 passed`.
+  - Local V0.9 frontend production `/`: `200`, about `0.226s` total after restart.
+  - Cloudflare Worker deployed successfully as version `c36faf33-140c-4d07-af6c-ed7f432bd53b`.
 - Frontend production build passed with `npm run build`.
 - Backend test suite passed: `19 passed`.
 - Real local flow passed: crawl success `22`, failure `1`, skipped `0`.
@@ -94,6 +99,8 @@ Design QA screenshots:
 ```text
 docs/design-qa/cloudflare-worker-cover-v2.png
 docs/design-qa/cloudflare-worker-cover-v2-mobile.png
+docs/design-qa/v09-dashboard-desktop.png
+docs/design-qa/v09-dashboard-mobile.png
 ```
 
 ### Latest Latency Diagnosis

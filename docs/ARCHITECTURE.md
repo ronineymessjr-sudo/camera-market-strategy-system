@@ -1,22 +1,36 @@
-# V0.3 架构
+# V0.15 Architecture
 
-```text
-动态商品池 Product
-  ├─ PlatformListing（多平台、多店铺、多来源）
-  ├─ Strategy（用户自己定义阈值和价格有效期）
-  └─ PriceRecord（市场事实、截图、核验状态、有效期）
-          │
-          ├─ Price Analytics（范围、分位、波动、异常）
-          ├─ Selection Engine（候选排序，不替用户决策）
-          └─ Signal Engine（只执行用户策略）
-                    │
-                    └─ Daily Report / Dashboard
+```mermaid
+flowchart LR
+    Public[Public visitor] --> Worker[Cloudflare Worker landing]
+    Operator[Single operator] --> Access[Cloudflare Access]
+    CI[GitHub Actions service token] --> Access
+    Access --> Tunnel[Cloudflare Tunnel]
+    Tunnel --> Caddy[Internal Caddy :80]
+    Caddy --> Next[Next.js frontend]
+    Caddy --> API[FastAPI]
+    API --> PG[(Supabase Postgres)]
+    API --> Storage[(Private Supabase Storage)]
+    Scheduler[Scheduler container] --> PG
+    JobWorker[Worker container] --> PG
+    JobWorker --> Sources[Marketplace APIs and public sources]
+    JobWorker --> Webhook[Signed outbound webhook]
 ```
 
-## 三个严格分层
+## Runtime Boundaries
 
-1. **市场事实**：抓到什么、是否核验、什么时候失效。
-2. **选品候选**：哪些商品值得优先看，允许使用线索和波动特征。
-3. **用户信号**：只有新鲜、同币种、已核验到手价可以触发。
+- The public Worker contains marketing content and a link to the private app; it does not run the product backend.
+- Cloudflare Access authenticates the operator and adds a signed JWT. FastAPI verifies issuer, audience, signature, and operator email.
+- Cloudflare Tunnel is the only HTTP ingress. Caddy, Next.js, FastAPI, worker, and scheduler are private Docker-network services.
+- Supabase/Postgres is the source of truth for products, prices, evidence metadata, strategies, signals, notifications, and jobs.
+- Supabase Storage holds private uploaded evidence. Service-role credentials exist only in backend containers.
+- Long operations are queued in PostgreSQL and claimed with `FOR UPDATE SKIP LOCKED`; API requests return without waiting for crawling or report generation.
 
-这三层不得混用。候选分高不等于买入信号。
+## Trust Layers
+
+1. Market facts: crawler and provider records remain `VISIBLE_PRICE` or `UNVERIFIED`.
+2. Verification: an operator uploads checkout/cart/order evidence; the server stores it, hashes it, and records provenance.
+3. Strategy: only fresh `VERIFIED_CHECKOUT` records with trusted uploaded evidence and matching currency can trigger.
+4. Notification: a new triggered signal creates a durable in-app notification and optional signed webhook delivery.
+
+Selection scores may use clues, but selection scores never become executable strategy signals.

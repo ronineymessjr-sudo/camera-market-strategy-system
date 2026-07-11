@@ -1,0 +1,123 @@
+x-backend-common: &backend-common
+  image: ${BACKEND_IMAGE:-camera-market-backend:local}
+  restart: unless-stopped
+  environment: &backend-environment
+    DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point to Supabase/Postgres}
+    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be the cloud HTTPS URL}
+    FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:?FRONTEND_ORIGINS must be the cloud HTTPS URL}
+    OPERATOR_API_TOKEN: ${OPERATOR_API_TOKEN:?OPERATOR_API_TOKEN is required for automation}
+    CLOUDFLARE_ACCESS_TEAM_DOMAIN: ${CLOUDFLARE_ACCESS_TEAM_DOMAIN:?Cloudflare Access team domain is required}
+    CLOUDFLARE_ACCESS_AUDIENCE: ${CLOUDFLARE_ACCESS_AUDIENCE:?Cloudflare Access audience is required}
+    OPERATOR_EMAIL: ${OPERATOR_EMAIL:?Single operator email is required}
+    SUPABASE_URL: ${SUPABASE_URL:?Supabase URL is required}
+    SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?Supabase service role key is required}
+    EVIDENCE_STORAGE_BUCKET: ${EVIDENCE_STORAGE_BUCKET:-price-evidence}
+    EVIDENCE_MAX_UPLOAD_BYTES: ${EVIDENCE_MAX_UPLOAD_BYTES:-10485760}
+    SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+    SCHEDULER_INTERVAL_MINUTES: ${SCHEDULER_INTERVAL_MINUTES:-60}
+    JOB_POLL_INTERVAL_SECONDS: ${JOB_POLL_INTERVAL_SECONDS:-2}
+    CRAWLER_CONCURRENCY: ${CRAWLER_CONCURRENCY:-3}
+    CRAWLER_PLATFORM_CONCURRENCY: ${CRAWLER_PLATFORM_CONCURRENCY:-taobao:2,pdd:2,jd:4,generic:6}
+    CRAWLER_TIMEOUT_MS: ${CRAWLER_TIMEOUT_MS:-45000}
+    CRAWLER_MIN_INTERVAL_MINUTES: ${CRAWLER_MIN_INTERVAL_MINUTES:-30}
+    CRAWLER_RETRIES: ${CRAWLER_RETRIES:-1}
+    CRAWLER_HEADLESS: ${CRAWLER_HEADLESS:-true}
+    JD_APP_KEY: ${JD_APP_KEY:-}
+    JD_APP_SECRET: ${JD_APP_SECRET:-}
+    JD_UNION_ID: ${JD_UNION_ID:-}
+    TAOBAO_APP_KEY: ${TAOBAO_APP_KEY:-}
+    TAOBAO_APP_SECRET: ${TAOBAO_APP_SECRET:-}
+    TAOBAO_ADZONE_ID: ${TAOBAO_ADZONE_ID:-}
+    PDD_CLIENT_ID: ${PDD_CLIENT_ID:-}
+    PDD_CLIENT_SECRET: ${PDD_CLIENT_SECRET:-}
+    PDD_PID: ${PDD_PID:-}
+    EBAY_CLIENT_ID: ${EBAY_CLIENT_ID:-}
+    EBAY_CLIENT_SECRET: ${EBAY_CLIENT_SECRET:-}
+    EBAY_MARKETPLACE_ID: ${EBAY_MARKETPLACE_ID:-EBAY_US}
+    AMAZON_ACCESS_KEY: ${AMAZON_ACCESS_KEY:-}
+    AMAZON_SECRET_KEY: ${AMAZON_SECRET_KEY:-}
+    AMAZON_PARTNER_TAG: ${AMAZON_PARTNER_TAG:-}
+    OUTBOUND_WEBHOOK_URL: ${OUTBOUND_WEBHOOK_URL:-}
+    OUTBOUND_WEBHOOK_SECRET: ${OUTBOUND_WEBHOOK_SECRET:-}
+  volumes:
+    - app_static:/app/app/static
+    - app_logs:/app/logs
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      caddy:
+        condition: service_started
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?Cloudflare Tunnel token is required}
+
+  backend:
+    <<: *backend-common
+    build:
+      context: ../../backend
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/system/ready', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  worker:
+    <<: *backend-common
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  scheduler:
+    <<: *backend-common
+    command: ["python", "-m", "app.scheduler_runner"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-camera-market-frontend:local}
+    build:
+      context: ../../frontend
+      args:
+        INTERNAL_API_BASE_URL: http://backend:8000
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      INTERNAL_API_BASE_URL: http://backend:8000
+      NEXT_PUBLIC_API_BASE: ""
+      NEXT_PUBLIC_SITE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be the cloud HTTPS URL}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
+      PORT: 3000
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+volumes:
+  app_static:
+  app_logs:

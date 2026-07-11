@@ -1,9 +1,28 @@
-import { PriceChart, SectionCard, StatusPill } from '@/components/dashboard-ui'
+import { PriceStory } from '@/components/experience-modules'
+import { SectionCard, StatusPill } from '@/components/dashboard-ui'
 import { api } from '@/lib/api'
-import { ageLabel, bestPrice, money, percent, shortDate } from '@/lib/format'
 import type { Listing, Price, PriceAnalytics, Product, Signal, Strategy } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
+
+function cash(value?: number | null, fallback = 'No price') {
+  if (typeof value !== 'number' || Number.isNaN(value)) return fallback
+  return `CNY ${Math.round(value).toLocaleString('en-US')}`
+}
+
+function best(price?: Price | null) {
+  return price?.checkout_price ?? price?.promotion_price ?? price?.list_price ?? null
+}
+
+function latestByTime(prices: Price[]) {
+  return prices.slice().sort((a, b) => +new Date(b.captured_at) - +new Date(a.captured_at))[0] ?? null
+}
+
+function trustTone(price?: Price | null) {
+  if (price?.verification_status === 'VERIFIED_CHECKOUT') return 'green'
+  if (price?.verification_status === 'INVALID') return 'red'
+  return 'amber'
+}
 
 async function loadProduct(id: string) {
   try {
@@ -11,57 +30,112 @@ async function loadProduct(id: string) {
     const [product, listings, prices, analytics, signals, strategies] = await Promise.all([
       api<Product>(`/api/products/${productId}`),
       api<Listing[]>(`/api/products/${productId}/listings`),
-      api<Price[]>(`/api/prices/product/${productId}?limit=80`),
-      api<PriceAnalytics>(`/api/analytics/products/${productId}?window_days=30`),
+      api<Price[]>(`/api/prices/product/${productId}?limit=240`),
+      api<PriceAnalytics>(`/api/analytics/products/${productId}?window_days=180`),
       api<Signal[]>(`/api/signals/product/${productId}`),
       api<Strategy[]>('/api/strategies'),
     ])
-    return { product, listings, prices, analytics, signals, strategies: strategies.filter((item) => item.product_id === productId) }
+    return {
+      product,
+      listings,
+      prices,
+      analytics,
+      signals,
+      strategy: strategies.find((item) => item.product_id === productId && item.is_active) ?? strategies.find((item) => item.product_id === productId) ?? null,
+    }
   } catch {
     return null
   }
 }
 
-export default async function ProductDetail({ params }: { params: { id: string } }) {
-  const data = await loadProduct(params.id)
+export default async function ProductDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const data = await loadProduct(id)
   if (!data) {
-    return <div className="panel empty">没有找到该商品，或后端服务暂时不可用。</div>
+    return <div className="panel empty">Product not found, or the backend is not available.</div>
   }
 
-  const verified = data.prices.find((price) => price.verification_status === 'VERIFIED_CHECKOUT')
-  const latest = data.prices[0]
-  const strategy = data.strategies[0]
+  const verified = data.prices.filter((price) => price.verification_status === 'VERIFIED_CHECKOUT')
+  const clues = data.prices.filter((price) => price.needs_review)
+  const latestTrusted = latestByTime(verified)
+  const latestClue = latestByTime(clues)
 
   return <>
-    <div className="page-title"><div><p className="muted">首页 / 商品详情 / 价格趋势</p><h1>{data.product.name}</h1></div><button className="btn">♡ 收藏</button></div>
-    <div className="detail-grid">
+    <div className="page-title">
       <div>
-        <SectionCard title="商品概览">
-          <div className="hero-product"><div className="lens-visual" /><div><StatusPill tone={data.product.is_active ? 'green' : 'amber'}>{data.product.is_active ? '追踪中' : '已暂停'}</StatusPill><h3>{data.product.name}</h3><p className="muted">{[data.product.brand, data.product.mount_type, data.product.sensor_format].filter(Boolean).join(' · ') || '摄影器材'}</p><div className="price-row"><div><span>当前已核验价</span><strong>{money(bestPrice(verified))}</strong></div><div><span>策略触发价</span><strong>{money(strategy?.trigger_price, '未设置')}</strong></div><div><span>强力入手区</span><strong style={{ color: '#f7b64b' }}>{money(strategy?.strong_buy_price, '未设置')}</strong></div></div></div></div>
-        </SectionCard>
-        <SectionCard title="价格趋势（30天）" action="7天　30天　90天"><PriceChart /></SectionCard>
-        <SectionCard title="近期价格记录">
-          <table className="data-table"><thead><tr><th>时间</th><th>平台</th><th>商品 / 店铺</th><th>价格</th><th>状态</th><th>来源</th></tr></thead><tbody>{data.prices.slice(0, 10).map((price) => <tr key={price.id}><td>{shortDate(price.captured_at)}</td><td>{price.platform || '未知'}</td><td>{price.seller_name || price.title || data.product.name}</td><td>{money(bestPrice(price))}</td><td><StatusPill tone={price.verification_status === 'VERIFIED_CHECKOUT' ? 'green' : price.verification_status === 'INVALID' ? 'red' : 'amber'}>{price.verification_status}</StatusPill></td><td>{price.source_url ? <a className="text-btn" href={price.source_url} target="_blank" rel="noreferrer">打开</a> : '本地'}</td></tr>)}</tbody></table>
-          {!data.prices.length && <div className="empty">暂无价格记录。</div>}
-        </SectionCard>
+        <span className="eyebrow">PRICE STORY</span>
+        <h1>{data.product.name}</h1>
+        <p>{[data.product.brand, data.product.category, data.product.mount_type, data.product.sensor_format].filter(Boolean).join(' / ') || 'Tracked camera-market product'}</p>
       </div>
-      <aside>
-        <SectionCard title="关键提醒"><div className="list">
-          <div className="list-row"><div><strong>样本数量 {data.analytics.sample_count}</strong><small>30 天数据序列：{data.analytics.series_type}</small></div><span>›</span></div>
-          <div className="list-row"><div><strong>价格趋势 {data.analytics.trend}</strong><small>波动率 {percent(data.analytics.volatility_pct)}</small></div><span>›</span></div>
-          <div className="list-row"><div><strong>最近更新</strong><small>{ageLabel(latest?.captured_at)}</small></div><span>›</span></div>
-        </div></SectionCard>
-        <SectionCard title="机会洞察"><div className="list">
-          {data.signals.slice(0, 5).map((signal) => <div className="list-row" key={signal.id}><div><strong>{signal.signal_type}</strong><small>{signal.message || signal.reason_code || '策略信号'}</small></div></div>)}
-          {!data.signals.length && <div className="empty">暂无策略信号。</div>}
-        </div></SectionCard>
-        <SectionCard title="当前策略">
-          <div className="form-row"><label>目标价</label><b>{money(strategy?.trigger_price, '未设置')}</b></div>
-          <div className="form-row"><label>强买线</label><b>{money(strategy?.strong_buy_price, '未设置')}</b></div>
-          <div className="form-row"><label>状态</label><StatusPill tone={strategy?.is_active ? 'green' : 'amber'}>{strategy?.is_active ? '运行中' : '未启用'}</StatusPill></div>
-          <div className="form-row"><label>来源链接</label><b>{data.listings.length}</b></div>
-        </SectionCard>
-      </aside>
     </div>
+
+    <PriceStory product={data.product} prices={data.prices} analytics={data.analytics} signals={data.signals} strategy={data.strategy} />
+
+    <div className="detail-grid" style={{ marginTop: 16 }}>
+      <SectionCard title="Primary trusted evidence">
+        {latestTrusted ? <div className="evidence-summary">
+          <span className="experience-chip">VERIFIED_CHECKOUT</span>
+          <h3>{cash(best(latestTrusted))}</h3>
+          <p>{latestTrusted.seller_name || latestTrusted.title || data.product.name}</p>
+          <div className="list">
+            <div className="list-row"><span>Verified at</span><b>{new Date(latestTrusted.verified_at || latestTrusted.captured_at).toLocaleString('en-US', { hour12: false })}</b></div>
+            <div className="list-row"><span>Currency</span><b>{latestTrusted.currency || 'UNKNOWN'}</b></div>
+            <div className="list-row"><span>Valid until</span><b>{latestTrusted.valid_until ? new Date(latestTrusted.valid_until).toLocaleString('en-US', { hour12: false }) : 'No expiry'}</b></div>
+          </div>
+        </div> : <div className="empty">No trusted checkout price yet. Strategy action is blocked until checkout evidence is verified.</div>}
+      </SectionCard>
+
+      <SectionCard title="Latest clue, not executable">
+        {latestClue ? <div className="evidence-summary clue-warning">
+          <span className="experience-chip">{latestClue.verification_status}</span>
+          <h3>{cash(best(latestClue))}</h3>
+          <p>This is only a visible or unverified clue. Do not treat it as current trusted price.</p>
+          <div className="list">
+            <div className="list-row"><span>Captured</span><b>{new Date(latestClue.captured_at).toLocaleString('en-US', { hour12: false })}</b></div>
+            <div className="list-row"><span>Confidence</span><b>{typeof latestClue.confidence_score === 'number' ? `${Math.round(latestClue.confidence_score * 100)}%` : 'Pending'}</b></div>
+          </div>
+        </div> : <div className="empty">No pending clue for this product.</div>}
+      </SectionCard>
+    </div>
+
+    <div className="three-col" style={{ marginTop: 16 }}>
+      <SectionCard title="Trust state">
+        <div className="list">
+          <div className="list-row"><span>Verified checkout records</span><b>{verified.length}</b></div>
+          <div className="list-row"><span>Review clues</span><b>{clues.length}</b></div>
+          <div className="list-row"><span>Active source links</span><b>{data.listings.filter((item) => item.is_active).length}</b></div>
+        </div>
+      </SectionCard>
+      <SectionCard title="Strategy target">
+        <div className="list">
+          <div className="list-row"><span>Watch price</span><b>{cash(data.strategy?.watch_price)}</b></div>
+          <div className="list-row"><span>Trigger price</span><b>{cash(data.strategy?.trigger_price)}</b></div>
+          <div className="list-row"><span>Strong-buy price</span><b>{cash(data.strategy?.strong_buy_price)}</b></div>
+        </div>
+      </SectionCard>
+      <SectionCard title="Analytics window">
+        <div className="list">
+          <div className="list-row"><span>Trend</span><b>{data.analytics.trend}</b></div>
+          <div className="list-row"><span>Samples</span><b>{data.analytics.sample_count}</b></div>
+          <div className="list-row"><span>Volatility</span><b>{typeof data.analytics.volatility_pct === 'number' ? `${data.analytics.volatility_pct.toFixed(1)}%` : 'n/a'}</b></div>
+        </div>
+      </SectionCard>
+    </div>
+
+    <SectionCard title="Evidence ledger" className="ledger-panel">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead><tr><th>Captured</th><th>Source</th><th>Seller / title</th><th>Best price</th><th>Trust</th><th>Action</th></tr></thead>
+          <tbody>{data.prices.slice(0, 40).map((price) => <tr key={price.id}>
+            <td>{new Date(price.captured_at).toLocaleString('en-US', { hour12: false })}</td>
+            <td>{price.platform || 'Unknown'}</td>
+            <td>{price.seller_name || price.title || data.product.name}</td>
+            <td>{cash(best(price))}</td>
+            <td><StatusPill tone={trustTone(price)}>{price.verification_status === 'VERIFIED_CHECKOUT' ? 'TRUSTED' : `${price.verification_status} / NOT ACTIONABLE`}</StatusPill></td>
+            <td>{price.source_url ? <a className="text-btn" href={price.source_url} target="_blank" rel="noreferrer">Open source</a> : 'Local record'}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+    </SectionCard>
   </>
 }

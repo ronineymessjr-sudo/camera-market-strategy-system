@@ -1,7 +1,7 @@
+import { SourceHealthAtlas } from '@/components/experience-modules'
 import { CrawlControls } from '@/components/crawl-controls'
-import { MetricCard, SectionCard, Sparkline, StatusPill } from '@/components/dashboard-ui'
+import { MetricCard, SectionCard, StatusPill } from '@/components/dashboard-ui'
 import { api } from '@/lib/api'
-import { ageLabel } from '@/lib/format'
 import type { FlowRun, FrontendBootstrap, IntegrationRun, ProviderStatus } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -26,53 +26,47 @@ function providerTone(provider: ProviderStatus) {
 export default async function Sources() {
   const { providers, integrationRuns, latestRun, bootstrap } = await loadSources()
   const configured = providers.filter((provider) => provider.configured).length
-  const lastRuns = integrationRuns.slice(0, 8)
+  const sourceHealth = bootstrap?.source_health ?? []
+  const healthy = sourceHealth.filter(item => item.status === 'HEALTHY').length
+  const healthByProvider = new Map(sourceHealth.map(item => [item.provider, item]))
 
   return <>
-    <div className="page-title"><div><h1>平台与数据源管理</h1><p>管理数据源连接、API 凭证与爬取任务</p></div><CrawlControls /></div>
-    <div className="metrics">
-      <MetricCard label="已配置平台" value={`${configured}/${providers.length}`} />
-      <MetricCard label="数据源健康度" value={providers.length ? `${Math.round((configured / providers.length) * 100)}%` : '0%'} tone={configured === providers.length ? 'green' : 'amber'} />
-      <MetricCard label="最近抓取成功" value={latestRun?.success_count ?? 0} tone="amber" />
-      <MetricCard label="价格记录总数" value={bootstrap?.price_stats.total ?? 0} tone="cyan" />
+    <div className="page-title">
+      <div>
+        <span className="eyebrow">SOURCE HEALTH</span>
+        <h1>Source Health Atlas</h1>
+        <p>See which platforms are connected, fresh, and trustworthy enough to feed pricing decisions.</p>
+      </div>
+      <CrawlControls />
     </div>
-    <SectionCard title="数据源连接状态">
+
+    <div className="metrics">
+      <MetricCard label="Configured providers" value={`${configured}/${providers.length}`} />
+      <MetricCard label="Runtime health" value={sourceHealth.length ? `${Math.round((healthy / sourceHealth.length) * 100)}%` : '0%'} tone={healthy === sourceHealth.length && healthy > 0 ? 'green' : 'amber'} />
+      <MetricCard label="Latest crawl success" value={latestRun?.success_count ?? 0} tone="amber" />
+      <MetricCard label="Price records" value={bootstrap?.price_stats.total ?? 0} tone="cyan" />
+    </div>
+
+    <SourceHealthAtlas providers={providers} sourceHealth={sourceHealth} integrationRuns={integrationRuns} latestRun={latestRun} stats={bootstrap?.price_stats ?? null} />
+
+    <SectionCard title="Provider matrix" className="ledger-panel">
       <div className="table-wrap">
         <table className="data-table">
-          <thead><tr><th>平台 / 数据源</th><th>类型</th><th>供应商状态</th><th>凭证状态</th><th>最近模式</th><th>同步趋势</th><th>操作建议</th></tr></thead>
-          <tbody>{providers.map((provider) => <tr key={provider.provider}>
+          <thead><tr><th>Provider</th><th>Type</th><th>Status</th><th>Credential</th><th>Mode</th><th>Trend</th><th>Next action</th></tr></thead>
+          <tbody>{providers.map((provider) => {
+            const health = healthByProvider.get(provider.provider)
+            return <tr key={provider.provider}>
             <td><strong>{provider.display_name}</strong></td>
-            <td>官方 / 联盟 API</td>
-            <td><StatusPill tone={providerTone(provider)}>{provider.configured ? '可调用' : '未配置'}</StatusPill></td>
-            <td><StatusPill tone={providerTone(provider)}>{provider.configured ? '有效' : '缺少密钥'}</StatusPill></td>
+            <td>Official / affiliate API</td>
+            <td><StatusPill tone={health?.status === 'HEALTHY' ? 'green' : 'amber'}>{health?.status ?? 'NO RUNS'}</StatusPill></td>
+            <td><StatusPill tone={providerTone(provider)}>{provider.configured ? 'VALID' : 'NEEDS KEY'}</StatusPill></td>
             <td>{provider.mode}</td>
-            <td><Sparkline points={provider.configured ? [40, 42, 43, 47, 48, 52, 50, 56] : [20, 20, 18, 20, 19, 20, 19, 20]} /></td>
-            <td>{provider.configured ? '可执行同步' : '按 API 密钥文档补齐凭证'}</td>
-          </tr>)}</tbody>
+            <td>{health ? `${health.success_rate}% / ${health.average_latency_ms ?? 'n/a'} ms` : 'No runtime samples'}</td>
+            <td>{provider.configured ? 'Run sync and compare checkout evidence' : 'Add API credentials before real import'}</td>
+          </tr>})}</tbody>
         </table>
       </div>
-      {!providers.length && <div className="empty">暂无供应商状态，请确认后端服务已启动。</div>}
+      {!providers.length && <div className="empty">No provider status returned. Check that the backend is running.</div>}
     </SectionCard>
-    <div className="two-col" style={{ marginTop: 16 }}>
-      <SectionCard title="本地爬虫运行状态">
-        <div className="metrics" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-          <div><b>{latestRun?.total_count ?? 0}</b><small className="muted">总任务</small></div>
-          <div><b>{latestRun?.success_count ?? 0}</b><small className="muted">成功</small></div>
-          <div><b>{latestRun?.failure_count ?? 0}</b><small className="muted">失败</small></div>
-          <div><b>{latestRun?.skipped_count ?? 0}</b><small className="muted">跳过</small></div>
-        </div>
-        <div className="list">
-          <div className="list-row"><span>最近运行</span><b>{latestRun ? ageLabel(latestRun.finished_at ?? latestRun.started_at) : '暂无'}</b></div>
-          <div className="list-row"><span>状态</span><StatusPill tone={latestRun?.status === 'SUCCESS' ? 'green' : 'amber'}>{latestRun?.status ?? '未运行'}</StatusPill></div>
-          <div className="list-row"><span>耗时</span><b>{latestRun?.duration_seconds ? `${latestRun.duration_seconds.toFixed(1)} 秒` : '暂无'}</b></div>
-        </div>
-      </SectionCard>
-      <SectionCard title="API 同步日志">
-        <div className="list">{lastRuns.length ? lastRuns.map((run) => <div className="list-row" key={run.id}>
-          <div><strong>{run.provider} · {run.keyword || '手动同步'}</strong><small>{ageLabel(run.finished_at ?? run.started_at)} · 收录 {run.ingested_count}/{run.offer_count}</small></div>
-          <StatusPill tone={run.status === 'SUCCESS' ? 'green' : run.status === 'FAILED' ? 'red' : 'amber'}>{run.status}</StatusPill>
-        </div>) : <div className="empty">暂无 API 同步记录。配置密钥后可从集成接口同步真实商品链接。</div>}</div>
-      </SectionCard>
-    </div>
   </>
 }

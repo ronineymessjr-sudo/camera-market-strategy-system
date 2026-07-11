@@ -108,6 +108,54 @@ class PriceOut(PriceCreate):
     captured_at: datetime
 
 
+class PriceEvidenceCreate(BaseModel):
+    upload_id: int | None = None
+    evidence_type: str = Field(min_length=2, max_length=40)
+    object_path: str | None = Field(default=None, max_length=2000)
+    evidence_hash: str | None = Field(default=None, max_length=128)
+    source_url: str | None = Field(default=None, max_length=2000)
+    sku_id: str | None = Field(default=None, max_length=120)
+    seller_name: str | None = Field(default=None, max_length=500)
+    region: str | None = Field(default=None, max_length=80)
+    captured_at: datetime | None = None
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class PriceEvidenceOut(PriceEvidenceCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    price_record_id: int
+    origin: str
+    trusted_for_strategy: bool
+    verified_by: str | None = None
+    created_at: datetime
+
+
+class EvidenceUploadOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    object_path: str
+    evidence_hash: str
+    mime_type: str
+    size_bytes: int
+    uploaded_by: str
+    created_at: datetime
+
+
+class PriceAdjustmentCreate(BaseModel):
+    adjustment_type: str = Field(min_length=2, max_length=80)
+    label: str | None = Field(default=None, max_length=500)
+    amount: float
+    currency: str = "CNY"
+
+
+class PriceAdjustmentOut(PriceAdjustmentCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    price_record_id: int
+    created_at: datetime
+
+
 class VerifyCheckoutRequest(BaseModel):
     checkout_price: float = Field(gt=0)
     note: str = Field(min_length=2, max_length=2000)
@@ -115,8 +163,16 @@ class VerifyCheckoutRequest(BaseModel):
     region: str = "CN"
     shipping_fee: float | None = Field(default=None, ge=0)
     coupon_text: str | None = None
-    verified_by: str = "ronin"
     valid_for_hours: int = Field(default=24, ge=1, le=720)
+    evidence: list[PriceEvidenceCreate] = Field(default_factory=list)
+    adjustments: list[PriceAdjustmentCreate] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def require_checkout_evidence(self):
+        trusted_types = {"CHECKOUT", "CART", "ORDER"}
+        if not any(item.evidence_type.upper() in trusted_types and item.upload_id for item in self.evidence):
+            raise ValueError("VERIFIED_CHECKOUT requires an uploaded CHECKOUT, CART, or ORDER evidence item")
+        return self
 
 
 class InvalidatePriceRequest(BaseModel):
@@ -228,6 +284,20 @@ class ProductOverviewOut(BaseModel):
     analytics: PriceAnalyticsOut | None = None
 
 
+class ProductRefreshSnapshotOut(BaseModel):
+    product: ProductOut
+    listings: list[ListingOut] = []
+    latest_any: PriceOut | None = None
+    latest_verified: PriceOut | None = None
+    latest_clue: PriceOut | None = None
+    active_listing_count: int = 0
+    refreshed_at: float
+    next_refresh_at: float
+    refresh_in_seconds: int
+    source: str
+    stale: bool
+
+
 class FlowRunOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -332,6 +402,74 @@ class IntegrationSyncResponse(BaseModel):
     price_record_ids: list[int] = []
 
 
+class SourceHealthOut(BaseModel):
+    provider: str
+    configured: bool
+    mode: str
+    status: str
+    last_checked_at: datetime | None = None
+    last_success_at: datetime | None = None
+    last_error: str | None = None
+    success_count: int
+    failure_count: int
+    success_rate: float
+    average_latency_ms: float | None = None
+    stale: bool = False
+
+
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    product_id: int | None
+    signal_id: int | None
+    type: str
+    title: str
+    body: str | None
+    status: str
+    created_at: datetime
+    read_at: datetime | None
+
+
+class ReviewPageOut(BaseModel):
+    items: list[PriceOut]
+    total: int
+    page: int
+    page_size: int
+    status_counts: dict[str, int] = Field(default_factory=dict)
+    platforms: list[str] = Field(default_factory=list)
+
+
+class SourceHealthHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    provider: str
+    status: str
+    mode: str | None
+    latency_ms: int | None
+    checked_at: datetime
+    details_json: str | None = None
+
+
+class SourceHealthHistoryPageOut(BaseModel):
+    items: list[SourceHealthHistoryOut]
+    total: int
+    page: int
+    page_size: int
+
+
+class BackgroundJobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    job_type: str
+    status: str
+    result_json: str | None
+    error_message: str | None
+    attempts: int
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
 class QuantIndicatorsOut(BaseModel):
     product_id: int
     window_days: int
@@ -390,6 +528,8 @@ class BacktestOut(BaseModel):
 class FrontendBootstrapOut(BaseModel):
     generated_at: datetime
     providers: list[ProviderStatusOut]
+    source_health: list[SourceHealthOut] = []
+    notifications: list[NotificationOut] = []
     price_stats: PriceStatsOut
     latest_run: FlowRunOut | None = None
     integration_runs: list[IntegrationRunOut] = []

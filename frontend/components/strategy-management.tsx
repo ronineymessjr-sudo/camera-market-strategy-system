@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { API_BASE } from '@/lib/api'
+import { operatorRequest } from '@/lib/operator-api'
 import type { Product, Strategy } from '@/lib/types'
 
 export function StrategyManagement({ strategies, products }: { strategies: Strategy[], products: Product[] }) {
@@ -35,16 +35,15 @@ function StrategyEditor({ strategy, productName, onSaved }: { strategy: Strategy
       is_active: active,
       notes,
     }
-    const response = await fetch(`${API_BASE}/api/strategies/${strategy.id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-    })
-    setBusy(false)
-    if (!response.ok) {
-      setMessage(await response.text())
-      return
+    try {
+      await operatorRequest(`/api/strategies/${strategy.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+      setMessage('已保存，并按价格时效重新计算信号。')
+      onSaved()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '保存失败')
+    } finally {
+      setBusy(false)
     }
-    setMessage('已保存，并按价格时效重新计算信号。')
-    onSaved()
   }
 
   return <form onSubmit={save} className="card grid gap-4 md:grid-cols-2">

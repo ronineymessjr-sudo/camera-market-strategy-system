@@ -1,26 +1,4 @@
-services:
-  backend:
-    build: ./backend
-    environment:
-      DATABASE_URL: sqlite:////data/camera_market.db
-      PUBLIC_BASE_URL: http://localhost:8000
-      FRONTEND_ORIGINS: http://localhost:3000
-    ports:
-      - "8000:8000"
-    volumes:
-      - camera_data:/data
-      - ./backend/app/static:/app/app/static
-      - ./logs:/app/logs
+name: camera-market
 
-  frontend:
-    build: ./frontend
-    environment:
-      NEXT_PUBLIC_API_BASE: http://localhost:8000
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-
-volumes:
-  camera_data:
+include:
+  - path: ./deploy/production/docker-compose.yml

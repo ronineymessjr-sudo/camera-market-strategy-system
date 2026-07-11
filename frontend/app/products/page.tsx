@@ -20,46 +20,82 @@ export default async function Products() {
   const active = rows.filter((row) => row.product.is_active)
   const reached = rows.filter((row) => row.latest_signal?.triggered)
   const paused = rows.filter((row) => !row.product.is_active)
+  const needsReview = rows.filter((row) => row.latest_clue && !row.latest_verified)
 
   return <>
     <div className="page-title">
-      <div><h1>监控商品</h1><p>动态维护商品池、目标价格与监控状态</p></div>
-      <div><button className="btn">导出</button> <button className="btn primary">＋ 添加监控</button></div>
+      <div>
+        <h1>Tracked Products</h1>
+        <p>Verified checkout prices stay separate from visible or unverified clues.</p>
+      </div>
+      <div><button className="btn">Export</button> <button className="btn primary">+ Add product</button></div>
     </div>
     <div className="metrics">
-      <MetricCard label="全部商品" value={rows.length} note="来自本地数据库" />
-      <MetricCard label="监控中" value={active.length} note="正常参与流程" tone="green" />
-      <MetricCard label="策略触发" value={reached.length} note="等待复核/行动" tone="amber" />
-      <MetricCard label="已暂停" value={paused.length} note="可随时恢复" tone="cyan" />
+      <MetricCard label="All products" value={rows.length} note="Current watchlist" />
+      <MetricCard label="Active" value={active.length} note="Included in monitoring" tone="green" />
+      <MetricCard label="Strategy triggered" value={reached.length} note="Requires final operator review" tone="amber" />
+      <MetricCard label="Needs verification" value={needsReview.length} note="Clues are not actionable" tone="cyan" />
     </div>
     <div className="panel">
       <div className="tabs">
-        <button className="tab active">全部状态 {rows.length}</button>
-        <button className="tab">监控中 {active.length}</button>
-        <button className="tab">策略触发 {reached.length}</button>
-        <button className="tab">已暂停 {paused.length}</button>
+        <button className="tab active">All {rows.length}</button>
+        <button className="tab">Active {active.length}</button>
+        <button className="tab">Needs review {needsReview.length}</button>
+        <button className="tab">Paused {paused.length}</button>
       </div>
       <div className="table-wrap">
         <table className="data-table">
-          <thead><tr><th>商品信息</th><th>平台数</th><th>最新可信价</th><th>最新线索</th><th>价格置信度</th><th>最后更新</th><th>状态</th><th /></tr></thead>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Sources</th>
+              <th>Trusted checkout price</th>
+              <th>Latest clue</th>
+              <th>Trust state</th>
+              <th>Last clue</th>
+              <th>Status</th>
+              <th />
+            </tr>
+          </thead>
           <tbody>{rows.map((row) => {
-            const trusted = row.latest_verified ?? row.latest_fresh_verified
-            const clue = row.latest_clue ?? row.latest_any
-            const price = bestPrice(trusted) ?? bestPrice(clue)
-            return <tr key={row.product.id}>
-              <td><div className="product-cell"><div className="thumb">◉</div><div><Link href={`/products/${row.product.id}`}><strong>{row.product.name}</strong></Link><small className="muted">{[row.product.brand, row.product.category, row.product.mount_type].filter(Boolean).join(' / ') || '摄影器材'}</small></div></div></td>
+            const trusted = row.latest_fresh_verified ?? row.latest_verified
+            const clue = row.latest_clue ?? (row.latest_any?.verification_status === 'VERIFIED_CHECKOUT' ? null : row.latest_any)
+            const clueOnly = Boolean(clue && !trusted)
+            return <tr key={row.product.id} className={clueOnly ? 'needs-review-row' : undefined}>
+              <td>
+                <div className="product-cell">
+                  <div className="thumb">P</div>
+                  <div>
+                    <Link href={`/products/${row.product.id}`}><strong>{row.product.name}</strong></Link>
+                    <small className="muted">{[row.product.brand, row.product.category, row.product.mount_type].filter(Boolean).join(' / ') || 'Camera gear'}</small>
+                  </div>
+                </div>
+              </td>
               <td>{row.active_listing_count}</td>
-              <td><b>{money(bestPrice(trusted))}</b></td>
-              <td>{money(price)}</td>
-              <td><div className="confidence"><StatusPill tone={trusted ? 'green' : 'amber'}>{trusted ? '已核验' : confidence(clue?.confidence_score)}</StatusPill><i style={{ '--w': `${Math.round((clue?.confidence_score ?? 0.4) * 100)}%` } as React.CSSProperties} /></div></td>
+              <td>
+                <b>{trusted ? money(bestPrice(trusted)) : 'No trusted price'}</b>
+                {!trusted && <small className="muted">Strategy action locked</small>}
+              </td>
+              <td>
+                {clue ? <div className="clue-cell">
+                  <b>{money(bestPrice(clue))}</b>
+                  <small>{clueOnly ? 'UNVERIFIED CLUE / not actionable' : 'Fresh clue for review'}</small>
+                </div> : 'No clue'}
+              </td>
+              <td>
+                <div className="confidence">
+                  <StatusPill tone={trusted ? 'green' : 'amber'}>{trusted ? 'VERIFIED_CHECKOUT' : `NEEDS REVIEW ${confidence(clue?.confidence_score)}`}</StatusPill>
+                  <i style={{ '--w': `${Math.round((clue?.confidence_score ?? 0.4) * 100)}%` } as React.CSSProperties} />
+                </div>
+              </td>
               <td>{ageLabel(clue?.captured_at)}</td>
-              <td><StatusPill tone={row.product.is_active ? 'green' : 'amber'}>{row.product.is_active ? '监控中' : '已暂停'}</StatusPill></td>
-              <td>•••</td>
+              <td><StatusPill tone={row.product.is_active ? 'green' : 'amber'}>{row.product.is_active ? 'Active' : 'Paused'}</StatusPill></td>
+              <td><Link className="text-btn" href={`/products/${row.product.id}`}>Open</Link></td>
             </tr>
           })}</tbody>
         </table>
       </div>
-      {!rows.length && <div className="empty">暂无商品。请先运行种子数据或使用命令添加监控商品。</div>}
+      {!rows.length && <div className="empty">No products yet. Add watchlist items or import seed data first.</div>}
     </div>
   </>
 }

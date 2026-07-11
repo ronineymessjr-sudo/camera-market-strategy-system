@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import PriceRecord, Product, Strategy
+from app.models import EvidenceUpload, PriceEvidence, PriceRecord, Product, Strategy
 from app.schemas import BacktestRequest
 from app.services.quant_engine import backtest_strategy, quant_indicators
 
@@ -27,13 +27,32 @@ def test_quant_indicators_and_backtest():
     db.add(strategy)
     now = datetime.utcnow()
     for index, price in enumerate([5000, 4800, 4600, 4450, 4250, 4400, 4700]):
-        db.add(PriceRecord(
+        record = PriceRecord(
             product_id=product.id,
             checkout_price=price,
             currency="CNY",
             verification_status="VERIFIED_CHECKOUT",
             needs_review=False,
             captured_at=now - timedelta(days=6-index),
+        )
+        db.add(record)
+        db.flush()
+        upload = EvidenceUpload(
+            object_path=f"quant-{index}.png",
+            evidence_hash=str(index) * 64,
+            mime_type="image/png",
+            size_bytes=10,
+            uploaded_by="test",
+            consumed_by_price_record_id=record.id,
+        )
+        db.add(upload)
+        db.flush()
+        db.add(PriceEvidence(
+            price_record_id=record.id,
+            upload_id=upload.id,
+            evidence_type="CHECKOUT",
+            origin="OPERATOR_UPLOAD",
+            trusted_for_strategy=True,
         ))
     db.commit()
 

@@ -1,5 +1,8 @@
-{$SITE_HOST} {
+:80 {
   encode zstd gzip
+  header X-Robots-Tag "noindex, nofollow"
+  header X-Content-Type-Options "nosniff"
+  header Referrer-Policy "strict-origin-when-cross-origin"
 
   @health path /healthz
   respond @health 200

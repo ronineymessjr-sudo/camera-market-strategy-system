@@ -36,13 +36,25 @@ REQUIRED = {
         ROOT / "deploy" / "cloudflare-public" / "worker.js",
         "APP_URL",
     ),
-    "Required production database URL": (
-        ROOT / "docker-compose.yml",
-        "DATABASE_URL must point to Supabase/Postgres",
-    ),
     "Required deploy production database URL": (
         ROOT / "deploy" / "production" / "docker-compose.yml",
         "DATABASE_URL must point to Supabase/Postgres",
+    ),
+    "Required deploy production operator token": (
+        ROOT / "deploy" / "production" / "docker-compose.yml",
+        "OPERATOR_API_TOKEN is required for automation",
+    ),
+    "Required Cloudflare Access validation": (
+        ROOT / "deploy" / "production" / "docker-compose.yml",
+        "CLOUDFLARE_ACCESS_AUDIENCE",
+    ),
+    "Required Cloudflare Tunnel": (
+        ROOT / "deploy" / "production" / "docker-compose.yml",
+        "CLOUDFLARE_TUNNEL_TOKEN",
+    ),
+    "Required background worker": (
+        ROOT / "deploy" / "production" / "docker-compose.yml",
+        "python\", \"-m\", \"app.worker",
     ),
 }
 

@@ -29,6 +29,16 @@ function jsonResponse(body, init = {}) {
   })
 }
 
+function textResponse(body, contentType) {
+  return new Response(body, {
+    headers: {
+      ...SECURITY_HEADERS,
+      'content-type': contentType,
+      'cache-control': 'public, max-age=300',
+    },
+  })
+}
+
 export default {
   async fetch(request, env = {}) {
     const url = new URL(request.url)
@@ -47,10 +57,25 @@ export default {
       const response = jsonResponse({
         ok: true,
         service: 'camera-market-public-entry',
-        version: '0.12-entry',
+        version: '0.15-entry',
         app_url: appConfigured ? appUrl : null,
         app_configured: appConfigured,
       })
+      return method === 'HEAD' ? new Response(null, response) : response
+    }
+
+    if (url.pathname === '/robots.txt') {
+      const response = textResponse(`User-agent: *\nAllow: /\nSitemap: ${url.origin}/sitemap.xml\n`, 'text/plain; charset=utf-8')
+      return method === 'HEAD' ? new Response(null, response) : response
+    }
+
+    if (url.pathname === '/sitemap.xml') {
+      const response = textResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${url.origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`, 'application/xml; charset=utf-8')
+      return method === 'HEAD' ? new Response(null, response) : response
+    }
+
+    if (url.pathname === '/llms.txt') {
+      const response = textResponse(`# Camera Market Strategy System\n\nA single-operator camera price intelligence system. Visible and unverified prices are clues only. A strategy can trigger only from a fresh VERIFIED_CHECKOUT record backed by server-recorded operator-uploaded checkout evidence. The system never purchases automatically.\n\nSource: ${GITHUB_URL}\n`, 'text/plain; charset=utf-8')
       return method === 'HEAD' ? new Response(null, response) : response
     }
 
@@ -62,7 +87,7 @@ export default {
       return method === 'HEAD' ? new Response(null, response) : response
     }
 
-    const response = new Response(renderPage(appUrl, appConfigured), {
+    const response = new Response(renderPage(appUrl, appConfigured, url.origin), {
       headers: {
         ...SECURITY_HEADERS,
         'content-type': 'text/html; charset=utf-8',
@@ -73,13 +98,30 @@ export default {
   },
 }
 
-function renderPage(appUrl, appConfigured) {
+function renderPage(appUrl, appConfigured, publicOrigin) {
   const launchHref = appConfigured ? appUrl : GITHUB_URL
   const launchLabel = appConfigured ? '进入系统' : '等待云端应用地址'
   return `<!doctype html><html lang="zh-CN"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="description" content="相机价格追踪与策略平台，记录真实价格、核验证据并生成购买提醒。"/>
+<link rel="canonical" href="${publicOrigin}/"/>
+<meta property="og:type" content="website"/><meta property="og:url" content="${publicOrigin}/"/>
+<meta property="og:title" content="影价追踪 | Camera Market Intelligence"/>
+<meta property="og:description" content="区分网页价格线索与真实结算证据，只让可信到手价参与策略。"/>
+<meta name="twitter:card" content="summary"/>
 <title>影价追踪 | Camera Market Intelligence</title>
+<script type="application/ld+json">${JSON.stringify({
+    '@context': 'https://schema.org',
+    '@graph': [
+      { '@type': 'WebSite', name: '影价追踪', url: `${publicOrigin}/` },
+      { '@type': 'SoftwareApplication', name: 'Camera Market Strategy System', applicationCategory: 'BusinessApplication', operatingSystem: 'Web', url: `${publicOrigin}/`, description: 'Verified camera-market price intelligence for a single operator.' },
+      { '@type': 'FAQPage', mainEntity: [
+        { '@type': 'Question', name: '网页显示价格会直接触发购买策略吗？', acceptedAnswer: { '@type': 'Answer', text: '不会。网页可见价和未核验价仅作为线索。' } },
+        { '@type': 'Question', name: '什么价格可以触发策略？', acceptedAnswer: { '@type': 'Answer', text: '只有仍在有效期内、币种匹配并关联操作员上传结算证据的 VERIFIED_CHECKOUT 价格。' } },
+        { '@type': 'Question', name: '系统会自动下单吗？', acceptedAnswer: { '@type': 'Answer', text: '不会。系统只提供价格情报、人工核验、策略信号和报告。' } },
+      ] },
+    ],
+  })}</script>
 <style>
 :root{color-scheme:dark;--text:#f6f6f2;--muted:#8b8b86;--line:rgba(255,255,255,.13);font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#020202;color:var(--text)}body{overflow-x:hidden;background:radial-gradient(circle at 50% 44%,#1c1c1c 0,transparent 20%),#020202}a{color:inherit;text-decoration:none}

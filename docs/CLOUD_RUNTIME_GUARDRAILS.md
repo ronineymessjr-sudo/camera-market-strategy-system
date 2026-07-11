@@ -17,7 +17,7 @@ Localhost, local tunnels, and SQLite are only for explicit local development or 
 
 - `deploy/production/docker-compose.yml` now fails if `DATABASE_URL`, `PUBLIC_BASE_URL`, or `FRONTEND_ORIGINS` are missing.
 - `deploy/production/.env.example` now points `DATABASE_URL` to Supabase/Postgres instead of SQLite.
-- `frontend/next.config.mjs` now requires `INTERNAL_API_BASE_URL`; it no longer silently falls back to `127.0.0.1`.
+- `frontend/next.config.mjs` should receive `INTERNAL_API_BASE_URL` for container/cloud builds; local builds fall back to the public/local API base when that variable is absent.
 - `deploy/cloudflare-public/worker.js` no longer hardcodes `loca.lt`; it reads `APP_URL` from Worker vars.
 - `scripts/check-cloud-runtime.py` fails CI if production config reintroduces local tunnel URLs, SQLite production defaults, or localhost API fallback.
 

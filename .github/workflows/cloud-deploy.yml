@@ -3,19 +3,22 @@ name: Cloud Deploy
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: cloud-deploy-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+env:
+  BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
 
 jobs:
   validate:
-    name: Validate cloud runtime
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,89 +28,158 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Check cloud-only production config
-        run: python scripts/check-cloud-runtime.py
-      - name: Worker contract tests
-        run: node --test deploy/cloudflare-public/worker.test.mjs
+      - run: python scripts/check-cloud-runtime.py
+      - run: node --test deploy/cloudflare-public/worker.test.mjs
+
+  build-images:
+    needs: validate
+    if: ${{ vars.CLOUD_APP_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ${{ env.BACKEND_IMAGE }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: ${{ env.FRONTEND_IMAGE }}
+          build-args: INTERNAL_API_BASE_URL=http://backend:8000
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
 
   deploy-worker:
-    name: Deploy Cloudflare Worker
     needs: validate
-    runs-on: ubuntu-latest
     if: ${{ vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Deploy public entry Worker
+      - name: Deploy public entry Worker with required secret
         working-directory: deploy/cloudflare-public
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           APP_URL: ${{ vars.APP_URL }}
         run: |
-          npx wrangler deploy
-          if [ -n "$APP_URL" ]; then
-            printf "%s" "$APP_URL" | npx wrangler secret put APP_URL
-          fi
+          test -n "$APP_URL"
+          printf '{"APP_URL":"%s"}' "$APP_URL" > .worker-secrets.json
+          npx wrangler deploy --secrets-file .worker-secrets.json
+          rm -f .worker-secrets.json
 
   deploy-app:
-    name: Deploy cloud app runtime
-    needs: validate
-    runs-on: ubuntu-latest
+    needs: [validate, build-images]
     if: ${{ vars.CLOUD_APP_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Upload repository to cloud host
+      - name: Upload deployment manifests and migrations
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.CLOUD_HOST }}
           username: ${{ secrets.CLOUD_SSH_USER }}
           key: ${{ secrets.CLOUD_SSH_KEY }}
-          source: "."
+          source: "deploy/production,supabase/migrations"
           target: "${{ vars.CLOUD_APP_PATH }}"
           rm: false
-      - name: Deploy Docker Compose stack on cloud host
+      - name: Migrate and deploy immutable images
         uses: appleboy/ssh-action@v1.2.0
         env:
           CLOUD_APP_PATH: ${{ vars.CLOUD_APP_PATH }}
-          SITE_HOST: ${{ vars.SITE_HOST }}
           PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
           FRONTEND_ORIGINS: ${{ vars.FRONTEND_ORIGINS }}
           DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPERATOR_API_TOKEN: ${{ secrets.OPERATOR_API_TOKEN }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          CLOUDFLARE_ACCESS_TEAM_DOMAIN: ${{ vars.CLOUDFLARE_ACCESS_TEAM_DOMAIN }}
+          CLOUDFLARE_ACCESS_AUDIENCE: ${{ vars.CLOUDFLARE_ACCESS_AUDIENCE }}
+          OPERATOR_EMAIL: ${{ vars.OPERATOR_EMAIL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
+          FRONTEND_IMAGE: ${{ env.FRONTEND_IMAGE }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DATABASE_BACKUP_CONFIRMED: ${{ vars.DATABASE_BACKUP_CONFIRMED }}
         with:
           host: ${{ secrets.CLOUD_HOST }}
           username: ${{ secrets.CLOUD_SSH_USER }}
           key: ${{ secrets.CLOUD_SSH_KEY }}
-          envs: CLOUD_APP_PATH,SITE_HOST,PUBLIC_BASE_URL,FRONTEND_ORIGINS,DATABASE_URL,SUPABASE_SERVICE_ROLE_KEY,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+          envs: CLOUD_APP_PATH,PUBLIC_BASE_URL,FRONTEND_ORIGINS,DATABASE_URL,SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,OPERATOR_API_TOKEN,CLOUDFLARE_TUNNEL_TOKEN,CLOUDFLARE_ACCESS_TEAM_DOMAIN,CLOUDFLARE_ACCESS_AUDIENCE,OPERATOR_EMAIL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,BACKEND_IMAGE,FRONTEND_IMAGE,GHCR_USERNAME,GHCR_TOKEN,DATABASE_BACKUP_CONFIRMED
           script: |
             set -eu
+            test "$DATABASE_BACKUP_CONFIRMED" = "true"
             cd "$CLOUD_APP_PATH"
+            [ ! -f .env.cloud ] || cp .env.cloud .env.cloud.previous
             cat > .env.cloud <<EOF
-            SITE_HOST=$SITE_HOST
             PUBLIC_BASE_URL=$PUBLIC_BASE_URL
             FRONTEND_ORIGINS=$FRONTEND_ORIGINS
             DATABASE_URL=$DATABASE_URL
-            SUPABASE_PROJECT_REF=woywgfoqurumrkyoznnb
-            SUPABASE_URL=https://woywgfoqurumrkyoznnb.supabase.co
+            SUPABASE_URL=$SUPABASE_URL
             SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
-            NEXT_PUBLIC_SUPABASE_URL=https://woywgfoqurumrkyoznnb.supabase.co
+            OPERATOR_API_TOKEN=$OPERATOR_API_TOKEN
+            CLOUDFLARE_TUNNEL_TOKEN=$CLOUDFLARE_TUNNEL_TOKEN
+            CLOUDFLARE_ACCESS_TEAM_DOMAIN=$CLOUDFLARE_ACCESS_TEAM_DOMAIN
+            CLOUDFLARE_ACCESS_AUDIENCE=$CLOUDFLARE_ACCESS_AUDIENCE
+            OPERATOR_EMAIL=$OPERATOR_EMAIL
+            NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-            SCHEDULER_ENABLED=false
+            EVIDENCE_STORAGE_BUCKET=price-evidence
+            SCHEDULER_ENABLED=true
+            BACKEND_IMAGE=$BACKEND_IMAGE
+            FRONTEND_IMAGE=$FRONTEND_IMAGE
             EOF
-            docker compose -p camera-market --env-file .env.cloud config >/dev/null
-            docker compose -p camera-market --env-file .env.cloud up -d --build
+            chmod 600 .env.cloud
+            printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            docker pull "$BACKEND_IMAGE"
+            docker pull "$FRONTEND_IMAGE"
+            docker run --rm -e DATABASE_URL="$DATABASE_URL" -v "$CLOUD_APP_PATH/supabase/migrations:/migrations:ro" "$BACKEND_IMAGE" python -m app.migrate /migrations --verify
+            docker compose -f deploy/production/docker-compose.yml --env-file .env.cloud config >/dev/null
+            docker compose -f deploy/production/docker-compose.yml --env-file .env.cloud up -d --no-build --remove-orphans
+            docker compose -f deploy/production/docker-compose.yml --env-file .env.cloud exec -T backend python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/system/ready', timeout=10)"
 
   verify-cloud:
-    name: Verify cloud app
-    needs:
-      - deploy-app
-    runs-on: ubuntu-latest
+    needs: deploy-app
     if: ${{ vars.CLOUD_APP_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify HTTPS app endpoints
+      - name: Verify private HTTPS app through Cloudflare Access
         shell: pwsh
+        env:
+          CLOUDFLARE_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
+          CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
         run: ./scripts/verify-cloud.ps1 -BaseUrl '${{ vars.PUBLIC_BASE_URL }}'
+
+  rollback-app:
+    needs: [deploy-app, verify-cloud]
+    if: ${{ always() && needs.deploy-app.result == 'success' && needs.verify-cloud.result == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore previous application images
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.CLOUD_HOST }}
+          username: ${{ secrets.CLOUD_SSH_USER }}
+          key: ${{ secrets.CLOUD_SSH_KEY }}
+          script: |
+            set -eu
+            cd "${{ vars.CLOUD_APP_PATH }}"
+            test -f .env.cloud.previous
+            cp .env.cloud.previous .env.cloud
+            docker compose -f deploy/production/docker-compose.yml --env-file .env.cloud up -d --no-build --remove-orphans

@@ -2,7 +2,7 @@
 
 ## Current truth
 
-- Supabase is already cloud-hosted and contains the real V0.12 dataset.
+- A Supabase project reference and historical seed package exist, but current production data and V0.15 migrations have not been remotely verified from this environment.
 - The Cloudflare Worker is only a public entry page.
 - The full application runtime is still the self-hosted Next.js + FastAPI stack.
 
@@ -21,10 +21,10 @@
 
 ## What still blocks a real cloud cutover
 
-- A persistent server or VM
-- A real public domain bound to that server
-- If you want immediate data continuity on the full runtime, a copy of the current `backend/camera_market.db`
-- If you want the full runtime to use Supabase directly, the production `DATABASE_URL`
+- A persistent server or VM with Docker
+- A real public domain, Cloudflare Access application, and remotely managed Tunnel
+- GitHub deployment secrets and variables listed in `docs/V015_PRODUCTION_READINESS.md`
+- A verified Supabase/Postgres `DATABASE_URL`, backup confirmation, and service-role key
 
 ## Important schema note
 
@@ -34,8 +34,8 @@
 
 ## Recommended cutover order
 
-1. Bring up the production Docker stack on a server
-2. Point the domain to the server
-3. Verify `/api/system/health`, `/products`, and `/products/1`
-4. Retire the unstable `loca.lt` link
-5. Keep the Cloudflare Worker only as a marketing/entry page or remove it
+1. Configure Cloudflare Access, Tunnel, and the private app hostname.
+2. Fill GitHub secrets and confirm a Supabase backup.
+3. Run the deployment workflow so V0.15 migrations and trust checks execute before the app rollout.
+4. Verify `/api/system/health`, `/api/system/ready`, the complete evidence flow, and the daily background job.
+5. Keep the Cloudflare Worker as the separate public entry page.

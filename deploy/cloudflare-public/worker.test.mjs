@@ -20,6 +20,7 @@ test('health endpoint is uncached JSON', async () => {
   const body = await response.json()
   assert.equal(body.ok, true)
   assert.equal(body.service, 'camera-market-public-entry')
+  assert.equal(body.version, '0.15-entry')
 })
 
 test('root and index return the landing page', async () => {
@@ -31,7 +32,22 @@ test('root and index return the landing page', async () => {
     assert.match(html, /已核验到手价/)
     assert.match(html, /rel="noopener noreferrer"/)
     assert.match(html, /aria-hidden="true"/)
+    assert.match(html, /application\/ld\+json/)
+    assert.match(html, /rel="canonical" href="https:\/\/example\.test\/"/)
   }
+})
+
+test('public discovery files describe only the public entry', async () => {
+  const robots = await worker.fetch(new Request('https://example.test/robots.txt'))
+  assert.equal(robots.status, 200)
+  assert.match(await robots.text(), /Sitemap: https:\/\/example\.test\/sitemap\.xml/)
+
+  const sitemap = await worker.fetch(new Request('https://example.test/sitemap.xml'))
+  assert.match(sitemap.headers.get('content-type') ?? '', /application\/xml/)
+  assert.match(await sitemap.text(), /<loc>https:\/\/example\.test\/<\/loc>/)
+
+  const llms = await worker.fetch(new Request('https://example.test/llms.txt'))
+  assert.match(await llms.text(), /Visible and unverified prices are clues only/)
 })
 
 test('unknown paths return a real 404', async () => {

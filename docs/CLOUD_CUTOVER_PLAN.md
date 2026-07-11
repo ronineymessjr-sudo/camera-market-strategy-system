@@ -1,92 +1,36 @@
 # Cloud Cutover Plan
 
-Date: 2026-07-01
+Updated: 2026-07-11
 
-## Goal
+## Target
 
-Move the full Camera Market Strategy System off localhost:
+- The public marketing entry runs as a Cloudflare Worker.
+- The private operator app runs on a Linux Docker host behind Cloudflare Access and a remotely managed Tunnel.
+- Caddy, Next.js, FastAPI, worker, and scheduler are reachable only on the Docker network.
+- Supabase/Postgres is the only production database and private Supabase Storage holds trusted evidence.
+- SQLite, localhost, and temporary tunnels remain development-only.
 
-- Cloudflare is the public entry/DNS layer.
-- The full app runtime runs on a cloud server/container stack.
-- Supabase/Postgres is the production database.
-- Local scripts remain only for development and tests.
+## Automated Release
 
-## Repository Changes Already Enforced
+Use `.github/workflows/cloud-deploy.yml`. The workflow:
 
-1. Root `docker-compose.yml` now points to the cloud production stack and refuses to run without a Supabase/Postgres `DATABASE_URL`.
-2. `deploy/production/docker-compose.yml` also requires cloud `DATABASE_URL`, `PUBLIC_BASE_URL`, and `FRONTEND_ORIGINS`.
-3. `frontend/next.config.mjs` requires `INTERNAL_API_BASE_URL`; it no longer falls back to `127.0.0.1`.
-4. Cloudflare Worker no longer hardcodes `loca.lt`; it uses Worker var `APP_URL`.
-5. `scripts/check-cloud-runtime.py` is in CI to prevent production config from falling back to local runtime.
-6. `scripts/deploy-cloud.ps1` refuses SQLite, localhost, and temporary tunnel URLs.
-7. `scripts/verify-cloud.ps1` refuses localhost and temporary tunnel URLs.
+1. Runs cloud guardrails and Worker tests.
+2. Builds immutable backend and frontend GHCR images tagged with the commit SHA.
+3. Requires explicit backup confirmation.
+4. Uploads only deployment manifests and SQL migrations.
+5. Applies tracked migrations and verifies signal trust invariants.
+6. Starts the app, worker, scheduler, Caddy, and Tunnel without building source on the server.
+7. Verifies the real HTTPS app through a Cloudflare Access service token.
+8. Restores the previous application image references when remote smoke tests fail.
 
-## Required Cloud Inputs
+Required secrets and variables are listed in `docs/V015_PRODUCTION_READINESS.md`.
 
-Fill `.env.cloud` from `deploy/production/.env.example`:
+## Supabase Boundary
 
-- `SITE_HOST`
-- `PUBLIC_BASE_URL`
-- `FRONTEND_ORIGINS`
-- `DATABASE_URL` for Supabase/Postgres
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- marketplace API keys when ready
+FastAPI is the sole production mutation and strategy engine. The historical Supabase Edge Functions are not deployed in V0.15 because their older request-body trust model does not satisfy the current evidence and identity rules. Supabase provides PostgreSQL, private object storage, backups, and optional read access through RLS.
 
-## Cloud Commands
+## Cutover Gate
 
-```powershell
-Copy-Item deploy\production\.env.example .env.cloud
-powershell -ExecutionPolicy Bypass -File scripts\deploy-cloud.ps1 -EnvFile .env.cloud
-powershell -ExecutionPolicy Bypass -File scripts\verify-cloud.ps1 -BaseUrl https://your-domain.example
-```
+The release is complete only after the real domain passes `scripts/verify-cloud.ps1`, `/api/system/ready` reports no missing tables, one real evidence-to-signal flow succeeds, the background daily flow completes, and the trust verification reports zero invalid triggered signals.
 
-Cloudflare Worker:
-
-```bash
-cd deploy/cloudflare-public
-npx wrangler deploy
-npx wrangler secret put APP_URL
-```
-
-Supabase:
-
-```bash
-psql "<SUPABASE_DATABASE_URL>" -f supabase/seeds/local_v012_seed.sql
-supabase functions deploy verify-price invalidate-price evaluate-strategy refresh-product send-notification generate-daily-report record-source-health --project-ref woywgfoqurumrkyoznnb
-```
-
-## GitHub Actions Cloud Deploy
-
-Workflow: `.github/workflows/cloud-deploy.yml`
-
-Repository variables:
-
-- `CLOUDFLARE_DEPLOY_ENABLED=true`
-- `CLOUD_APP_DEPLOY_ENABLED=true`
-- `APP_URL=https://your-domain.example`
-- `CLOUD_APP_PATH=/opt/camera-market-strategy-system`
-- `SITE_HOST=your-domain.example`
-- `PUBLIC_BASE_URL=https://your-domain.example`
-- `FRONTEND_ORIGINS=https://your-domain.example`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<anon-or-publishable-key>`
-
-Repository secrets:
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUD_HOST`
-- `CLOUD_SSH_USER`
-- `CLOUD_SSH_KEY`
-- `SUPABASE_DATABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-The deploy workflow runs `scripts/check-cloud-runtime.py` first, then deploys the Cloudflare Worker and the cloud Docker Compose app. It does not deploy when the enable variables are not set to `true`.
-
-## Current Blocker In This Codex Environment
-
-The local environment timed out when checking:
-
-- `npx wrangler whoami`
-- `npx supabase --version`
-
-So the repository is now guarded for cloud runtime, but live remote deployment still requires working Cloudflare/Supabase CLI authentication or equivalent CI secrets.
+Current repository secrets and variables are still empty, so this repository is cloud-ready but not currently verified as live.

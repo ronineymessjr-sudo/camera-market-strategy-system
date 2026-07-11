@@ -14,6 +14,16 @@ function best(price?: Price | null) {
   return price?.checkout_price ?? price?.promotion_price ?? price?.list_price ?? null
 }
 
+function latestByTime(prices: Price[]) {
+  return prices.slice().sort((a, b) => +new Date(b.captured_at) - +new Date(a.captured_at))[0] ?? null
+}
+
+function trustTone(price?: Price | null) {
+  if (price?.verification_status === 'VERIFIED_CHECKOUT') return 'green'
+  if (price?.verification_status === 'INVALID') return 'red'
+  return 'amber'
+}
+
 async function loadProduct(id: string) {
   try {
     const productId = Number(id)
@@ -47,6 +57,8 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
 
   const verified = data.prices.filter((price) => price.verification_status === 'VERIFIED_CHECKOUT')
   const clues = data.prices.filter((price) => price.needs_review)
+  const latestTrusted = latestByTime(verified)
+  const latestClue = latestByTime(clues)
 
   return <>
     <div className="page-title">
@@ -58,6 +70,33 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
     </div>
 
     <PriceStory product={data.product} prices={data.prices} analytics={data.analytics} signals={data.signals} strategy={data.strategy} />
+
+    <div className="detail-grid" style={{ marginTop: 16 }}>
+      <SectionCard title="Primary trusted evidence">
+        {latestTrusted ? <div className="evidence-summary">
+          <span className="experience-chip">VERIFIED_CHECKOUT</span>
+          <h3>{cash(best(latestTrusted))}</h3>
+          <p>{latestTrusted.seller_name || latestTrusted.title || data.product.name}</p>
+          <div className="list">
+            <div className="list-row"><span>Verified at</span><b>{new Date(latestTrusted.verified_at || latestTrusted.captured_at).toLocaleString('en-US', { hour12: false })}</b></div>
+            <div className="list-row"><span>Currency</span><b>{latestTrusted.currency || 'UNKNOWN'}</b></div>
+            <div className="list-row"><span>Valid until</span><b>{latestTrusted.valid_until ? new Date(latestTrusted.valid_until).toLocaleString('en-US', { hour12: false }) : 'No expiry'}</b></div>
+          </div>
+        </div> : <div className="empty">No trusted checkout price yet. Strategy action is blocked until checkout evidence is verified.</div>}
+      </SectionCard>
+
+      <SectionCard title="Latest clue, not executable">
+        {latestClue ? <div className="evidence-summary clue-warning">
+          <span className="experience-chip">{latestClue.verification_status}</span>
+          <h3>{cash(best(latestClue))}</h3>
+          <p>This is only a visible or unverified clue. Do not treat it as current trusted price.</p>
+          <div className="list">
+            <div className="list-row"><span>Captured</span><b>{new Date(latestClue.captured_at).toLocaleString('en-US', { hour12: false })}</b></div>
+            <div className="list-row"><span>Confidence</span><b>{typeof latestClue.confidence_score === 'number' ? `${Math.round(latestClue.confidence_score * 100)}%` : 'Pending'}</b></div>
+          </div>
+        </div> : <div className="empty">No pending clue for this product.</div>}
+      </SectionCard>
+    </div>
 
     <div className="three-col" style={{ marginTop: 16 }}>
       <SectionCard title="Trust state">
@@ -92,7 +131,7 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
             <td>{price.platform || 'Unknown'}</td>
             <td>{price.seller_name || price.title || data.product.name}</td>
             <td>{cash(best(price))}</td>
-            <td><StatusPill tone={price.verification_status === 'VERIFIED_CHECKOUT' ? 'green' : price.verification_status === 'INVALID' ? 'red' : 'amber'}>{price.verification_status}</StatusPill></td>
+            <td><StatusPill tone={trustTone(price)}>{price.verification_status === 'VERIFIED_CHECKOUT' ? 'TRUSTED' : `${price.verification_status} / NOT ACTIONABLE`}</StatusPill></td>
             <td>{price.source_url ? <a className="text-btn" href={price.source_url} target="_blank" rel="noreferrer">Open source</a> : 'Local record'}</td>
           </tr>)}</tbody>
         </table>

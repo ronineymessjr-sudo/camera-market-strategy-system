@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { API_BASE } from '@/lib/api'
+import { type BackgroundJob, operatorRequest, waitForJob } from '@/lib/operator-api'
 
 export function CrawlControls() {
   const router = useRouter()
@@ -12,11 +12,11 @@ export function CrawlControls() {
     setBusy(true)
     setMessage('正在低频抓取，请稍候…')
     try {
-      const response = await fetch(`${API_BASE}/api/prices/crawl-all?force=${force}`, { method: 'POST' })
-      const text = await response.text()
-      if (!response.ok) throw new Error(text)
-      const data = JSON.parse(text)
-      setMessage(`完成：成功 ${data.run.success_count}，失败 ${data.run.failure_count}，跳过 ${data.run.skipped_count}。`)
+      const queued = await operatorRequest<BackgroundJob>(`/api/jobs/crawls?force=${force}`, { method: 'POST' })
+      setMessage(`任务 #${queued.id} 已进入云端队列。`)
+      const completed = await waitForJob(queued.id)
+      const data = JSON.parse(completed.result_json || '{}')
+      setMessage(`完成：成功 ${data.success_count ?? 0}，失败 ${data.failure_count ?? 0}，跳过 ${data.skipped_count ?? 0}。`)
       router.refresh()
     } catch (e) {
       setMessage(e instanceof Error ? e.message : '运行失败')

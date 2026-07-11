@@ -33,7 +33,7 @@ export default async function Home() {
     <div className="dashboard-content">
       <section className="opening-hero">
         <div className="opening-copy">
-          <span className="eyebrow">V0.12 / VERIFIED PRICE INTELLIGENCE</span>
+          <span className="eyebrow">V0.15 / VERIFIED PRICE INTELLIGENCE</span>
           <h1>Camera Market<br />Command Center</h1>
           <p>Bring back the drama at the door, then get straight to the work: checkout evidence, strategy signals, source health, and daily operator flow.</p>
           <div className="opening-actions">

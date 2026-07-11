@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { API_BASE } from '@/lib/api'
+import { type BackgroundJob, operatorRequest, waitForJob } from '@/lib/operator-api'
 
 export function ReportControls() {
   const router = useRouter()
@@ -11,14 +11,17 @@ export function ReportControls() {
   async function generate() {
     setBusy(true)
     setMessage('')
-    const response = await fetch(`${API_BASE}/api/reports/generate`, { method: 'POST' })
-    setBusy(false)
-    if (!response.ok) {
-      setMessage(await response.text())
-      return
+    try {
+      const queued = await operatorRequest<BackgroundJob>('/api/jobs/reports', { method: 'POST' })
+      setMessage(`报告任务 #${queued.id} 已进入云端队列。`)
+      await waitForJob(queued.id)
+      setMessage('今日日报已重新生成。')
+      router.refresh()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '报告生成失败')
+    } finally {
+      setBusy(false)
     }
-    setMessage('今日日报已重新生成。')
-    router.refresh()
   }
   return <div className="flex items-center gap-3">
     <button className="btn-primary" onClick={generate} disabled={busy}>{busy ? '生成中…' : '生成/刷新今日日报'}</button>

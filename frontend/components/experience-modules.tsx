@@ -11,6 +11,7 @@ import type {
   ProviderStatus,
   SelectionCandidate,
   Signal,
+  SourceHealth,
   Strategy,
 } from '@/lib/types'
 
@@ -171,16 +172,19 @@ export function PriceStory({
   strategy?: Strategy | null
 }) {
   const usable = prices.filter((price) => typeof best(price) === 'number')
-  const latest = usable[0]
-  const low = usable.reduce<Price | null>((winner, price) => {
+  const trusted = usable.filter((price) => price.verification_status === 'VERIFIED_CHECKOUT')
+  const clues = usable.filter((price) => price.verification_status !== 'VERIFIED_CHECKOUT' && price.verification_status !== 'INVALID')
+  const latestTrusted = trusted[0]
+  const latestClue = clues[0]
+  const lowTrusted = trusted.reduce<Price | null>((winner, price) => {
     if (!winner) return price
     return (best(price) ?? Infinity) < (best(winner) ?? Infinity) ? price : winner
   }, null)
   const events = [
-    { label: 'Latest evidence', value: cash(best(latest)), detail: latest ? `${trustLabel(latest)} / ${ago(latest.captured_at)}` : 'No captured price yet' },
-    { label: 'Lowest captured point', value: cash(best(low)), detail: low ? `${low.platform ?? 'Unknown source'} / ${ago(low.captured_at)}` : 'No history yet' },
+    { label: 'Latest trusted checkout', value: cash(best(latestTrusted)), detail: latestTrusted ? `VERIFIED_CHECKOUT / ${ago(latestTrusted.captured_at)}` : 'No executable price yet' },
+    { label: 'Lowest trusted checkout', value: cash(best(lowTrusted)), detail: lowTrusted ? `${lowTrusted.platform ?? 'Unknown source'} / ${ago(lowTrusted.captured_at)}` : 'No trusted history yet' },
+    { label: 'Latest unverified clue', value: cash(best(latestClue)), detail: latestClue ? `${trustLabel(latestClue)} / not actionable` : 'No pending clue' },
     { label: 'Strategy target', value: cash(strategy?.trigger_price), detail: strategy?.strategy_name ?? 'No active strategy' },
-    { label: 'Current trend', value: analytics?.trend ?? 'Unknown', detail: `${analytics?.sample_count ?? 0} samples in window` },
   ]
 
   return <section className="experience-band price-story">
@@ -256,14 +260,17 @@ export function SourceHealthAtlas({
   integrationRuns,
   latestRun,
   stats,
+  sourceHealth = [],
 }: {
   providers: ProviderStatus[]
   integrationRuns?: IntegrationRun[]
   latestRun?: FlowRun | null
   stats?: PriceStats | null
+  sourceHealth?: SourceHealth[]
 }) {
-  const configured = providers.filter((provider) => provider.configured).length
-  const health = providers.length ? Math.round((configured / providers.length) * 100) : 0
+  const healthy = sourceHealth.filter((item) => item.status === 'HEALTHY').length
+  const health = sourceHealth.length ? Math.round((healthy / sourceHealth.length) * 100) : 0
+  const healthByProvider = new Map(sourceHealth.map((item) => [item.provider, item]))
 
   return <section className="experience-band source-atlas">
     <div className="experience-head">
@@ -272,13 +279,13 @@ export function SourceHealthAtlas({
         <h2>Know which sources deserve trust</h2>
         <p>Connection state, sync freshness, and crawler health sit next to the price evidence layer.</p>
       </div>
-      <span className="experience-chip">{health}% configured</span>
+      <span className="experience-chip">{health}% runtime healthy</span>
     </div>
     <div className="source-grid">
-      {providers.map((provider) => <article key={provider.provider} className={provider.configured ? 'ready' : 'missing'}>
+      {providers.map((provider) => <article key={provider.provider} className={healthByProvider.get(provider.provider)?.status === 'HEALTHY' ? 'ready' : 'missing'}>
         <span>{provider.display_name}</span>
-        <strong>{provider.configured ? 'READY' : 'MISSING KEY'}</strong>
-        <small>{provider.mode}</small>
+        <strong>{healthByProvider.get(provider.provider)?.status ?? (provider.configured ? 'NO RUNS' : 'MISSING KEY')}</strong>
+        <small>{healthByProvider.get(provider.provider)?.success_rate ?? 0}% success / {healthByProvider.get(provider.provider)?.average_latency_ms ?? 'n/a'} ms</small>
       </article>)}
     </div>
     <div className="source-footer">

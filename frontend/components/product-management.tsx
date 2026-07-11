@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { API_BASE } from '@/lib/api'
+import { operatorRequest } from '@/lib/operator-api'
 import type { ProductOverview, Price } from '@/lib/types'
 import { StatusBadge } from './status-badge'
 import { VerifyPriceForm } from './verify-price-form'
@@ -45,12 +46,12 @@ export function ProductManagement({ rows }: { rows: ProductOverview[] }) {
 
   async function archive(productId: number) {
     if (!window.confirm('暂停监控并归档这个商品？历史价格不会删除。')) return
-    await fetch(`${API_BASE}/api/products/${productId}`, { method: 'DELETE' })
+    await operatorRequest(`/api/products/${productId}`, { method: 'DELETE' })
     router.refresh()
   }
 
   async function restore(productId: number) {
-    await fetch(`${API_BASE}/api/products/${productId}/restore`, { method: 'POST' })
+    await operatorRequest(`/api/products/${productId}/restore`, { method: 'POST' })
     router.refresh()
   }
 

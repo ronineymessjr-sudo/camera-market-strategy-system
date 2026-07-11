@@ -5,6 +5,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.auth import require_operator
 from app.database import get_db
 from app.services.signal_service import refresh_signal_for_strategy
 
@@ -17,7 +18,7 @@ def list_strategies(db: Session = Depends(get_db)):
     return db.query(models.Strategy).order_by(desc(models.Strategy.is_active), desc(models.Strategy.id)).all()
 
 
-@router.post("", response_model=schemas.StrategyOut, status_code=201)
+@router.post("", response_model=schemas.StrategyOut, status_code=201, dependencies=[Depends(require_operator)])
 def create_strategy(payload: schemas.StrategyCreate, db: Session = Depends(get_db)):
     if not db.get(models.Product, payload.product_id):
         raise HTTPException(404, "Product not found")
@@ -30,7 +31,7 @@ def create_strategy(payload: schemas.StrategyCreate, db: Session = Depends(get_d
     return item
 
 
-@router.put("/{strategy_id}", response_model=schemas.StrategyOut)
+@router.put("/{strategy_id}", response_model=schemas.StrategyOut, dependencies=[Depends(require_operator)])
 def update_strategy(strategy_id: int, payload: schemas.StrategyUpdate, db: Session = Depends(get_db)):
     item = db.get(models.Strategy, strategy_id)
     if not item:
@@ -44,7 +45,7 @@ def update_strategy(strategy_id: int, payload: schemas.StrategyUpdate, db: Sessi
     return item
 
 
-@router.post("/{strategy_id}/copy", response_model=schemas.StrategyOut, status_code=201)
+@router.post("/{strategy_id}/copy", response_model=schemas.StrategyOut, status_code=201, dependencies=[Depends(require_operator)])
 def copy_strategy(strategy_id: int, user_name: str = "ronin", db: Session = Depends(get_db)):
     source = db.get(models.Strategy, strategy_id)
     if not source:

@@ -123,13 +123,13 @@ def export_json_seed(conn: sqlite3.Connection) -> dict[str, Any]:
                 ],
             }
         )
-    return {"version": "v0.12", "tables": tables}
+    return {"version": "v0.15-strict", "tables": tables}
 
 
 def export_sql(conn: sqlite3.Connection) -> str:
     lines = [
         "-- Generated from backend/camera_market.db by scripts/export-sqlite-to-supabase-v012.py",
-        "-- Re-runnable seed for V0.12 Supabase production schema.",
+        "-- Re-runnable V0.15 strict seed; legacy unproven checkout prices are downgraded.",
         "begin;",
         "set constraints all deferred;",
     ]

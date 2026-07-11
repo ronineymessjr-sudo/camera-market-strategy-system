@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import desc
@@ -10,6 +11,7 @@ from app import models, schemas
 from app.config import settings
 from app.integrations.base import ProviderSearchRequest
 from app.integrations.registry import get_provider
+from app.services.source_health_service import record_source_health
 
 
 PROVIDER_REGION = {
@@ -48,6 +50,7 @@ async def sync_provider(
     db.add(run)
     db.commit()
     db.refresh(run)
+    started_perf = time.perf_counter()
 
     try:
         result = await provider.search(ProviderSearchRequest(
@@ -118,6 +121,15 @@ async def sync_provider(
         run.offer_count = len(saved)
         run.ingested_count = len(price_record_ids)
         run.finished_at = _now()
+        latency_ms = int((time.perf_counter() - started_perf) * 1000)
+        record_source_health(
+            db,
+            provider_code,
+            "SUCCESS",
+            mode="official_api",
+            latency_ms=latency_ms,
+            details={"offer_count": len(saved), "ingested_count": len(price_record_ids)},
+        )
         run.response_summary_json = json.dumps({
             "offer_count": len(saved),
             "ingested_count": len(price_record_ids),
@@ -132,6 +144,15 @@ async def sync_provider(
         run.status = "FAILED"
         run.finished_at = _now()
         run.error_message = str(exc)[:4000]
+        latency_ms = int((time.perf_counter() - started_perf) * 1000)
+        record_source_health(
+            db,
+            provider_code,
+            "FAILED",
+            mode="official_api",
+            latency_ms=latency_ms,
+            details={"error": str(exc)[:1000]},
+        )
         db.commit()
         db.refresh(run)
         raise

@@ -16,6 +16,7 @@ from app import models
 from app.config import settings
 from app.crawler.base import CrawlResult
 from app.crawler.generic import crawl_page_with_browser, screenshot_filename
+from app.services.source_health_service import record_source_health
 
 
 LOG_DIR = Path(__file__).resolve().parents[3] / "logs"
@@ -255,8 +256,48 @@ async def run_crawl_batch(
         ensure_ascii=False,
     )
     run.log_path = str(log_path)
+    _record_crawl_source_health(db, snapshots, records, failures, duration)
     db.commit()
     for record in records:
         db.refresh(record)
     db.refresh(run)
     return CrawlBatchResult(run=run, records=records, failures=failures, skipped_listing_ids=skipped)
+
+
+def _record_crawl_source_health(
+    db: Session,
+    snapshots: list[ListingSnapshot],
+    records: list[models.PriceRecord],
+    failures: list[dict[str, Any]],
+    duration_seconds: float,
+) -> None:
+    platforms = sorted({snapshot.platform for snapshot in snapshots} | {record.platform or "generic" for record in records})
+    failed_listing_ids = {item["listing_id"] for item in failures}
+    record_count_by_platform: dict[str, int] = {}
+    failure_count_by_platform: dict[str, int] = {}
+    total_by_platform: dict[str, int] = {}
+    for snapshot in snapshots:
+        total_by_platform[snapshot.platform] = total_by_platform.get(snapshot.platform, 0) + 1
+        if snapshot.id in failed_listing_ids:
+            failure_count_by_platform[snapshot.platform] = failure_count_by_platform.get(snapshot.platform, 0) + 1
+    for record in records:
+        key = record.platform or "generic"
+        record_count_by_platform[key] = record_count_by_platform.get(key, 0) + 1
+
+    for platform in platforms:
+        total = total_by_platform.get(platform, 0)
+        failures_for_platform = failure_count_by_platform.get(platform, 0)
+        successes = max(record_count_by_platform.get(platform, 0) - failures_for_platform, 0)
+        status = "SUCCESS" if failures_for_platform == 0 else ("PARTIAL" if successes else "FAILED")
+        record_source_health(
+            db,
+            platform,
+            status,
+            mode="crawler",
+            latency_ms=int(duration_seconds * 1000),
+            details={
+                "attempted": total,
+                "success_count": successes,
+                "failure_count": failures_for_platform,
+            },
+        )

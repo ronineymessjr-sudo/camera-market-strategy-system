@@ -28,11 +28,17 @@ class SignalEngine:
         *,
         is_fresh: bool = True,
         currency_matches: bool = True,
+        currency_known: bool = True,
+        evidence_trusted: bool = True,
     ) -> SignalResult:
         if verification_status != "VERIFIED_CHECKOUT" or checkout_price is None:
             return SignalResult("UNVERIFIED", False, "缺少可核验结算价，不能触发策略。", "NO_VERIFIED_PRICE")
+        if not currency_known:
+            return SignalResult("CURRENCY_UNKNOWN", False, "Verified price is missing currency; strategy cannot trigger.", "CURRENCY_UNKNOWN")
         if not currency_matches:
             return SignalResult("CURRENCY_MISMATCH", False, "已核验价格币种与策略币种不一致。", "CURRENCY_MISMATCH")
+        if not evidence_trusted:
+            return SignalResult("UNVERIFIED", False, "缺少可信结算证据，不能触发策略。", "NO_TRUSTED_EVIDENCE")
         if not is_fresh:
             return SignalResult("STALE", False, "最近已核验价格已过期，需要重新核验当前结算价。", "STALE_PRICE")
         if strong_buy_price is not None and checkout_price <= strong_buy_price:

@@ -7,6 +7,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.auth import require_operator
 from app.database import get_db
 from app.integrations.registry import get_provider, provider_statuses, supported_providers
 from app.services.integration_service import latest_integration_runs, sync_provider
@@ -20,7 +21,7 @@ def providers():
     return provider_statuses()
 
 
-@router.post("/{provider}/sync", response_model=schemas.IntegrationSyncResponse)
+@router.post("/{provider}/sync", response_model=schemas.IntegrationSyncResponse, dependencies=[Depends(require_operator)])
 async def provider_sync(
     provider: str,
     payload: schemas.IntegrationSearchRequest,

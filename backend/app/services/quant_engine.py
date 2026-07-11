@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from math import sqrt
 from statistics import mean, median, pstdev
 
-from sqlalchemy import asc
+from sqlalchemy import and_, asc, or_
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -33,11 +33,20 @@ def load_series(
 ) -> list[tuple[datetime, float, str]]:
     start = _now_naive() - timedelta(days=window_days)
     statuses = ["VERIFIED_CHECKOUT"] + (["VISIBLE_PRICE"] if include_visible else [])
+    trusted_verified = and_(
+        models.PriceRecord.verification_status == "VERIFIED_CHECKOUT",
+        db.query(models.PriceEvidence.id).filter(
+            models.PriceEvidence.price_record_id == models.PriceRecord.id,
+            models.PriceEvidence.trusted_for_strategy.is_(True),
+        ).exists(),
+    )
+    trust_filter = or_(trusted_verified, models.PriceRecord.verification_status == "VISIBLE_PRICE") if include_visible else trusted_verified
     rows = (
         db.query(models.PriceRecord)
         .filter(
             models.PriceRecord.product_id == product_id,
             models.PriceRecord.verification_status.in_(statuses),
+            trust_filter,
             models.PriceRecord.captured_at >= start,
         )
         .order_by(asc(models.PriceRecord.captured_at), asc(models.PriceRecord.id))

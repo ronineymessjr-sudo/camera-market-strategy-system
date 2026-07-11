@@ -9,9 +9,9 @@ SQL_SEED = ROOT / 'supabase' / 'seeds' / 'local_v012_seed.sql'
 EXPECTED_COUNTS = {
     'products': 20,
     'product_listings': 23,
-    'price_records': 102,
+    'price_records': 148,
     'strategies': 20,
-    'signals': 23,
+    'signals': 24,
 }
 
 
@@ -26,7 +26,7 @@ def main() -> None:
         fail(f'Missing or empty SQL seed: {SQL_SEED}')
 
     payload = json.loads(JSON_SEED.read_text(encoding='utf-8'))
-    if payload.get('version') != 'v0.12':
+    if payload.get('version') != 'v0.15-strict':
         fail(f"Unexpected seed version: {payload.get('version')!r}")
 
     tables = payload.get('tables')
@@ -54,13 +54,23 @@ def main() -> None:
         if len(ids) != len(set(ids)):
             fail(f'Duplicate IDs detected in {target}')
 
+    unproven_verified = [
+        row for row in by_target.get('price_records', [])
+        if row.get('verification_status') == 'VERIFIED_CHECKOUT'
+    ]
+    if unproven_verified:
+        fail('Strict seed must not contain VERIFIED_CHECKOUT rows without exported trusted evidence')
+    triggered = [row for row in by_target.get('signals', []) if row.get('triggered')]
+    if triggered:
+        fail('Strict seed must not contain triggered signals without exported trusted evidence')
+
     sql = SQL_SEED.read_text(encoding='utf-8').lower()
     required_sql_fragments = ['begin;', 'commit;', 'on conflict']
     missing = [fragment for fragment in required_sql_fragments if fragment not in sql]
     if missing:
         fail(f'SQL seed is missing required fragments: {missing}')
 
-    print('V0.12 seed validation passed')
+    print('V0.15 strict seed validation passed')
     for key, value in actual.items():
         print(f'- {key}: {value}')
 

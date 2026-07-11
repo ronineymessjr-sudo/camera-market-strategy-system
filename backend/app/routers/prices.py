@@ -7,11 +7,13 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.auth import OperatorIdentity, require_operator
 from app.crawler.generic import crawl_generic_page, screenshot_filename
 from app.concurrency_guard import BusyError, GLOBAL_LOCKS
 from app.database import get_db
 from app.routers.products import invalidate_product_snapshot
 from app.services.crawler_runner import run_crawl_batch
+from app.services.evidence_service import replace_price_evidence
 from app.services.scheduler import scheduler_status, start_scheduler, stop_scheduler
 from app.services.signal_service import refresh_signals_for_product
 
@@ -19,22 +21,16 @@ from app.services.signal_service import refresh_signals_for_product
 router = APIRouter(prefix="/api/prices", tags=["prices"])
 
 
-@router.post("", response_model=schemas.PriceOut, status_code=201)
+@router.post("", response_model=schemas.PriceOut, status_code=201, dependencies=[Depends(require_operator)])
 def create_price(payload: schemas.PriceCreate, db: Session = Depends(get_db)):
     if not db.get(models.Product, payload.product_id):
         raise HTTPException(404, "Product not found")
+    if payload.verification_status == "VERIFIED_CHECKOUT":
+        raise HTTPException(422, "Use verify-checkout to create VERIFIED_CHECKOUT records")
     item = models.PriceRecord(**payload.model_dump())
-    if item.verification_status == "VERIFIED_CHECKOUT":
-        item.needs_review = False
-        now = datetime.now(timezone.utc)
-        item.verified_at = now
-        item.valid_until = item.valid_until or (now + timedelta(hours=24))
-        item.verified_by = item.verified_by or "ronin"
     db.add(item)
     db.commit()
     db.refresh(item)
-    if item.verification_status == "VERIFIED_CHECKOUT":
-        refresh_signals_for_product(db, item.product_id, item)
     invalidate_product_snapshot(item.product_id)
     return item
 
@@ -88,8 +84,37 @@ def product_prices(product_id: int, limit: int = Query(100, ge=1, le=500), db: S
     )
 
 
+@router.get("/{price_id}/evidence", response_model=list[schemas.PriceEvidenceOut])
+def price_evidence(price_id: int, db: Session = Depends(get_db)):
+    if not db.get(models.PriceRecord, price_id):
+        raise HTTPException(404, "Price record not found")
+    return (
+        db.query(models.PriceEvidence)
+        .filter(models.PriceEvidence.price_record_id == price_id)
+        .order_by(desc(models.PriceEvidence.created_at), desc(models.PriceEvidence.id))
+        .all()
+    )
+
+
+@router.get("/{price_id}/adjustments", response_model=list[schemas.PriceAdjustmentOut])
+def price_adjustments(price_id: int, db: Session = Depends(get_db)):
+    if not db.get(models.PriceRecord, price_id):
+        raise HTTPException(404, "Price record not found")
+    return (
+        db.query(models.PriceAdjustment)
+        .filter(models.PriceAdjustment.price_record_id == price_id)
+        .order_by(desc(models.PriceAdjustment.created_at), desc(models.PriceAdjustment.id))
+        .all()
+    )
+
+
 @router.post("/{price_id}/verify-checkout", response_model=schemas.PriceOut)
-def verify_checkout(price_id: int, payload: schemas.VerifyCheckoutRequest, db: Session = Depends(get_db)):
+def verify_checkout(
+    price_id: int,
+    payload: schemas.VerifyCheckoutRequest,
+    identity: OperatorIdentity = Depends(require_operator),
+    db: Session = Depends(get_db),
+):
     item = db.get(models.PriceRecord, price_id)
     if not item:
         raise HTTPException(404, "Price record not found")
@@ -107,7 +132,9 @@ def verify_checkout(price_id: int, payload: schemas.VerifyCheckoutRequest, db: S
     now = datetime.now(timezone.utc)
     item.verified_at = now
     item.valid_until = now + timedelta(hours=payload.valid_for_hours)
-    item.verified_by = payload.verified_by
+    verified_by = identity.email or identity.subject
+    item.verified_by = verified_by
+    replace_price_evidence(db, item, payload.evidence, payload.adjustments, verified_by=verified_by)
     db.commit()
     db.refresh(item)
     refresh_signals_for_product(db, item.product_id, item)
@@ -115,7 +142,7 @@ def verify_checkout(price_id: int, payload: schemas.VerifyCheckoutRequest, db: S
     return item
 
 
-@router.post("/{price_id}/invalidate", response_model=schemas.PriceOut)
+@router.post("/{price_id}/invalidate", response_model=schemas.PriceOut, dependencies=[Depends(require_operator)])
 def invalidate_price(price_id: int, payload: schemas.InvalidatePriceRequest, db: Session = Depends(get_db)):
     item = db.get(models.PriceRecord, price_id)
     if not item:
@@ -134,7 +161,7 @@ def invalidate_price(price_id: int, payload: schemas.InvalidatePriceRequest, db:
     return item
 
 
-@router.post("/crawl/{listing_id}", response_model=schemas.PriceOut)
+@router.post("/crawl/{listing_id}", response_model=schemas.PriceOut, dependencies=[Depends(require_operator)])
 async def crawl_listing(listing_id: int, db: Session = Depends(get_db)):
     listing = db.get(models.PlatformListing, listing_id)
     if not listing:
@@ -155,6 +182,7 @@ async def crawl_all(
     force: bool = False,
     concurrency: int | None = Query(default=None, ge=1, le=8),
     min_interval_minutes: int | None = Query(default=None, ge=0, le=1440),
+    _: None = Depends(require_operator),
     db: Session = Depends(get_db),
 ):
     try:
@@ -194,13 +222,13 @@ def get_scheduler_status():
     return scheduler_status()
 
 
-@router.post("/scheduler/start")
+@router.post("/scheduler/start", dependencies=[Depends(require_operator)])
 def start_scheduler_endpoint():
     changed = start_scheduler()
     return {"changed": changed, **scheduler_status()}
 
 
-@router.post("/scheduler/stop")
+@router.post("/scheduler/stop", dependencies=[Depends(require_operator)])
 def stop_scheduler_endpoint():
     changed = stop_scheduler()
     return {"changed": changed, **scheduler_status()}

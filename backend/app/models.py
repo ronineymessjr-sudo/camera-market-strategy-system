@@ -81,6 +81,52 @@ class PriceRecord(Base):
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
+class PriceEvidence(Base):
+    __tablename__ = "price_evidence"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    price_record_id: Mapped[int] = mapped_column(ForeignKey("price_records.id"), nullable=False, index=True)
+    upload_id: Mapped[int | None] = mapped_column(ForeignKey("evidence_uploads.id"), index=True)
+    evidence_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    origin: Mapped[str] = mapped_column(String(40), default="USER_METADATA", index=True)
+    trusted_for_strategy: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    object_path: Mapped[str | None] = mapped_column(Text)
+    evidence_hash: Mapped[str | None] = mapped_column(String(128))
+    source_url: Mapped[str | None] = mapped_column(Text)
+    sku_id: Mapped[str | None] = mapped_column(String(120))
+    seller_name: Mapped[str | None] = mapped_column(Text)
+    region: Mapped[str | None] = mapped_column(String(80))
+    captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_by: Mapped[str | None] = mapped_column(String(80))
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class EvidenceUpload(Base):
+    __tablename__ = "evidence_uploads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    object_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    evidence_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    mime_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    uploaded_by: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    consumed_by_price_record_id: Mapped[int | None] = mapped_column(ForeignKey("price_records.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class PriceAdjustment(Base):
+    __tablename__ = "price_adjustments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    price_record_id: Mapped[int] = mapped_column(ForeignKey("price_records.id"), nullable=False, index=True)
+    adjustment_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    label: Mapped[str | None] = mapped_column(Text)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(12), default="CNY")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
 class Strategy(Base):
     __tablename__ = "strategies"
 
@@ -208,3 +254,62 @@ class StrategyBacktest(Base):
     series_type: Mapped[str] = mapped_column(String(80), default="VERIFIED_CHECKOUT")
     metrics_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class SourceHealthHistory(Base):
+    __tablename__ = "source_health_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    mode: Mapped[str | None] = mapped_column(String(80))
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    details_json: Mapped[str | None] = mapped_column("details", Text)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), index=True)
+    signal_id: Mapped[int | None] = mapped_column(ForeignKey("signals.id"), index=True)
+    type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(40), default="UNREAD", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class NotificationDelivery(Base):
+    __tablename__ = "notification_deliveries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notification_id: Mapped[int] = mapped_column(ForeignKey("notifications.id"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), default="PENDING", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    request_json: Mapped[str | None] = mapped_column(Text)
+    response_json: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class BackgroundJob(Base):
+    __tablename__ = "background_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), default="QUEUED", nullable=False, index=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(200), unique=True)
+    payload_json: Mapped[str | None] = mapped_column(Text)
+    result_json: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    worker_id: Mapped[str | None] = mapped_column(String(160), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

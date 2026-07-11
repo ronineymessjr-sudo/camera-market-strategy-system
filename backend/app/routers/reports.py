@@ -7,6 +7,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.auth import require_operator
 from app.database import get_db
 from app.services.report_generator import ReportGenerator
 
@@ -19,7 +20,7 @@ def list_reports(db: Session = Depends(get_db)):
     return db.query(models.DailyReport).order_by(desc(models.DailyReport.report_date), desc(models.DailyReport.id)).limit(30).all()
 
 
-@router.post("/generate", response_model=schemas.DailyReportOut)
+@router.post("/generate", response_model=schemas.DailyReportOut, dependencies=[Depends(require_operator)])
 def generate_report(report_date: date | None = None, db: Session = Depends(get_db)):
     return ReportGenerator(db).generate(report_date or date.today())
 

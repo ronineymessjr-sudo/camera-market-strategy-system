@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import desc, or_
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app import models
+from app.services.notification_service import create_signal_notification
 from app.services.signal_engine import SignalEngine
 
 
@@ -33,9 +34,13 @@ def latest_verified_price(
         models.PriceRecord.product_id == product_id,
         models.PriceRecord.verification_status == "VERIFIED_CHECKOUT",
         models.PriceRecord.checkout_price.isnot(None),
+        db.query(models.PriceEvidence.id).filter(
+            models.PriceEvidence.price_record_id == models.PriceRecord.id,
+            models.PriceEvidence.trusted_for_strategy.is_(True),
+        ).exists(),
     )
     if currency:
-        query = query.filter(or_(models.PriceRecord.currency == currency.upper(), models.PriceRecord.currency.is_(None)))
+        query = query.filter(models.PriceRecord.currency == currency.upper())
     rows = query.order_by(
         desc(models.PriceRecord.verified_at),
         desc(models.PriceRecord.captured_at),
@@ -73,6 +78,15 @@ def is_price_fresh(price_record: models.PriceRecord | None, strategy: models.Str
     return effective_expiry >= now
 
 
+def has_trusted_evidence(db: Session, price_record: models.PriceRecord | None) -> bool:
+    if price_record is None:
+        return False
+    return db.query(models.PriceEvidence.id).filter(
+        models.PriceEvidence.price_record_id == price_record.id,
+        models.PriceEvidence.trusted_for_strategy.is_(True),
+    ).first() is not None
+
+
 def refresh_signal_for_strategy(
     db: Session,
     strategy: models.Strategy,
@@ -82,10 +96,14 @@ def refresh_signal_for_strategy(
 ) -> models.Signal:
     engine = SignalEngine()
     price_record = price_record or latest_verified_price(db, strategy.product_id, currency=strategy.currency)
+    currency_known = bool(price_record is None or price_record.currency)
     currency_matches = bool(
         price_record is None
-        or not price_record.currency
-        or price_record.currency.upper() == (strategy.currency or "CNY").upper()
+        or (
+            price_record.currency
+            and strategy.currency
+            and price_record.currency.upper() == strategy.currency.upper()
+        )
     )
     result = engine.evaluate(
         float(price_record.checkout_price) if price_record and price_record.checkout_price is not None else None,
@@ -94,6 +112,8 @@ def refresh_signal_for_strategy(
         price_record.verification_status if price_record else None,
         is_fresh=is_price_fresh(price_record, strategy),
         currency_matches=currency_matches,
+        currency_known=currency_known,
+        evidence_trusted=has_trusted_evidence(db, price_record),
     )
 
     previous = (
@@ -127,6 +147,9 @@ def refresh_signal_for_strategy(
         message=result.message,
     )
     db.add(signal)
+    db.flush()
+    if signal.triggered:
+        create_signal_notification(db, signal)
     if commit:
         db.commit()
         db.refresh(signal)

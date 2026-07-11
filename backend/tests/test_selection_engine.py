@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import PriceRecord, Product, Strategy
+from app.models import EvidenceUpload, PriceEvidence, PriceRecord, Product, Strategy
 from app.services.selection_engine import build_selection_candidates
 
 
@@ -24,7 +24,7 @@ def test_selection_engine_only_flags_fresh_verified_strategy_price():
         max_price_age_hours=24,
     ))
     now = datetime.now(timezone.utc)
-    session.add(PriceRecord(
+    price = PriceRecord(
         product_id=product.id,
         checkout_price=4299,
         currency="CNY",
@@ -33,6 +33,25 @@ def test_selection_engine_only_flags_fresh_verified_strategy_price():
         valid_until=now + timedelta(hours=24),
         captured_at=now,
         needs_review=False,
+    )
+    session.add(price)
+    session.flush()
+    upload = EvidenceUpload(
+        object_path="selection-checkout.png",
+        evidence_hash="c" * 64,
+        mime_type="image/png",
+        size_bytes=10,
+        uploaded_by="test",
+        consumed_by_price_record_id=price.id,
+    )
+    session.add(upload)
+    session.flush()
+    session.add(PriceEvidence(
+        price_record_id=price.id,
+        upload_id=upload.id,
+        evidence_type="CHECKOUT",
+        origin="OPERATOR_UPLOAD",
+        trusted_for_strategy=True,
     ))
     session.commit()
 

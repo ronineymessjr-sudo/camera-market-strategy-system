@@ -10,7 +10,9 @@ from app import models, schemas
 from app.database import get_db
 from app.integrations.registry import provider_statuses
 from app.services.integration_service import latest_integration_runs
+from app.services.overview_service import active_listing_counts, latest_prices_by_product, latest_signals_by_product
 from app.services.selection_engine import build_selection_candidates
+from app.services.source_health_service import build_source_health
 
 
 router = APIRouter(prefix="/api/frontend", tags=["frontend-contract"])
@@ -31,51 +33,23 @@ def bootstrap(
         .all()
     )
     product_overviews: list[schemas.ProductOverviewOut] = []
-    # Keep bootstrap inexpensive: summary records only; detailed trends use dedicated endpoints.
+    product_ids = [product.id for product in products]
+    latest_by_product = latest_prices_by_product(db, product_ids)
+    verified_by_product = latest_prices_by_product(db, product_ids, ["VERIFIED_CHECKOUT"], trusted_only=True)
+    clues_by_product = latest_prices_by_product(db, product_ids, ["VISIBLE_PRICE", "UNVERIFIED"])
+    signals_by_product = latest_signals_by_product(db, product_ids)
+    listing_counts = active_listing_counts(db, product_ids)
+
     for product in products:
-        latest = (
-            db.query(models.PriceRecord)
-            .filter(models.PriceRecord.product_id == product.id)
-            .order_by(desc(models.PriceRecord.captured_at), desc(models.PriceRecord.id))
-            .first()
-        )
-        verified = (
-            db.query(models.PriceRecord)
-            .filter(
-                models.PriceRecord.product_id == product.id,
-                models.PriceRecord.verification_status == "VERIFIED_CHECKOUT",
-            )
-            .order_by(desc(models.PriceRecord.captured_at), desc(models.PriceRecord.id))
-            .first()
-        )
-        clue = (
-            db.query(models.PriceRecord)
-            .filter(
-                models.PriceRecord.product_id == product.id,
-                models.PriceRecord.verification_status.in_(["VISIBLE_PRICE", "UNVERIFIED"]),
-            )
-            .order_by(desc(models.PriceRecord.captured_at), desc(models.PriceRecord.id))
-            .first()
-        )
-        signal = (
-            db.query(models.Signal)
-            .filter(models.Signal.product_id == product.id, models.Signal.is_current.is_(True))
-            .order_by(desc(models.Signal.created_at), desc(models.Signal.id))
-            .first()
-        )
-        listing_count = db.query(func.count(models.PlatformListing.id)).filter(
-            models.PlatformListing.product_id == product.id,
-            models.PlatformListing.is_active.is_(True),
-        ).scalar() or 0
         product_overviews.append(schemas.ProductOverviewOut(
             product=product,
-            latest_any=latest,
-            latest_verified=verified,
+            latest_any=latest_by_product.get(product.id),
+            latest_verified=verified_by_product.get(product.id),
             latest_fresh_verified=None,
-            latest_clue=clue,
-            latest_signal=signal,
+            latest_clue=clues_by_product.get(product.id),
+            latest_signal=signals_by_product.get(product.id),
             recent_prices=[],
-            active_listing_count=listing_count,
+            active_listing_count=listing_counts.get(product.id, 0),
             analytics=None,
         ))
 
@@ -96,6 +70,14 @@ def bootstrap(
     return schemas.FrontendBootstrapOut(
         generated_at=datetime.now(timezone.utc),
         providers=provider_statuses(),
+        source_health=build_source_health(db, window_hours=24),
+        notifications=(
+            db.query(models.Notification)
+            .filter(models.Notification.status == "UNREAD")
+            .order_by(desc(models.Notification.created_at), desc(models.Notification.id))
+            .limit(10)
+            .all()
+        ),
         price_stats=stats,
         latest_run=latest_run,
         integration_runs=latest_integration_runs(db, limit=10),

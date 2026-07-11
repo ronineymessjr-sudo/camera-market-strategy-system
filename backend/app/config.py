@@ -13,6 +13,15 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{(BACKEND_DIR / 'camera_market.db').as_posix()}"
     public_base_url: str = "http://127.0.0.1:8000"
     frontend_origins: str = "http://127.0.0.1:3000,http://localhost:3000"
+    operator_api_token: str | None = None
+    cloudflare_access_team_domain: str | None = None
+    cloudflare_access_audience: str | None = None
+    operator_email: str | None = None
+
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+    evidence_storage_bucket: str = "price-evidence"
+    evidence_max_upload_bytes: int = 10 * 1024 * 1024
 
     crawler_concurrency: int = 3
     crawler_platform_concurrency: str = "taobao:2,pdd:2,jd:4,generic:6"
@@ -23,6 +32,7 @@ class Settings(BaseSettings):
 
     scheduler_enabled: bool = False
     scheduler_interval_minutes: int = 60
+    job_poll_interval_seconds: float = 2.0
 
     # Official affiliate/open-platform integrations. Secrets stay in environment variables.
     jd_api_url: str = "https://api.jd.com/routerjson"

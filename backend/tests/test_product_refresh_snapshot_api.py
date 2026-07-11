@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app.models import PlatformListing, PriceRecord, Product
+from app.config import settings
 from app.routers import products as product_router
 from app.routers.products import _PRODUCT_SNAPSHOT_CACHE
 
@@ -51,6 +52,7 @@ def test_product_refresh_snapshot_uses_cache_and_invalidates_on_listing_create(m
     monkeypatch.setattr(product_router, "SessionLocal", TestingSession)
     _PRODUCT_SNAPSHOT_CACHE.clear()
     app.dependency_overrides[get_db] = override_db
+    settings.operator_api_token = "test-operator-token"
     try:
         client = TestClient(app)
         first = client.get(f"/api/products/{product.id}/refresh-snapshot")
@@ -64,6 +66,7 @@ def test_product_refresh_snapshot_uses_cache_and_invalidates_on_listing_create(m
 
         created = client.post(
             f"/api/products/{product.id}/listings",
+            headers={"X-Operator-Token": "test-operator-token"},
             json={
                 "platform": "taobao",
                 "seller_name": "Taobao Demo",
@@ -79,6 +82,7 @@ def test_product_refresh_snapshot_uses_cache_and_invalidates_on_listing_create(m
     finally:
         _PRODUCT_SNAPSHOT_CACHE.clear()
         app.dependency_overrides.clear()
+        settings.operator_api_token = None
 
 
 def test_product_refresh_snapshot_invalidates_when_price_changes(monkeypatch):
@@ -113,6 +117,7 @@ def test_product_refresh_snapshot_invalidates_when_price_changes(monkeypatch):
     monkeypatch.setattr(product_router, "SessionLocal", TestingSession)
     _PRODUCT_SNAPSHOT_CACHE.clear()
     app.dependency_overrides[get_db] = override_db
+    settings.operator_api_token = "test-operator-token"
     try:
         client = TestClient(app)
         first = client.get(f"/api/products/{product.id}/refresh-snapshot")
@@ -125,6 +130,7 @@ def test_product_refresh_snapshot_invalidates_when_price_changes(monkeypatch):
 
         created = client.post(
             "/api/prices",
+            headers={"X-Operator-Token": "test-operator-token"},
             json={
                 "product_id": product.id,
                 "listing_id": listing.id,
@@ -144,3 +150,4 @@ def test_product_refresh_snapshot_invalidates_when_price_changes(monkeypatch):
     finally:
         _PRODUCT_SNAPSHOT_CACHE.clear()
         app.dependency_overrides.clear()
+        settings.operator_api_token = None

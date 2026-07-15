@@ -8,7 +8,7 @@ export type BackgroundJob = {
   error_message?: string | null
 }
 
-export async function operatorRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function operatorFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers)
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
@@ -20,6 +20,11 @@ export async function operatorRequest<T>(path: string, init: RequestInit = {}): 
     cache: 'no-store',
   })
   if (!response.ok) throw new Error(await response.text())
+  return response
+}
+
+export async function operatorRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await operatorFetch(path, init)
   return response.json() as Promise<T>
 }
 

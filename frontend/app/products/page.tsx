@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { MetricCard, StatusPill } from '@/components/dashboard-ui'
+import { WatchlistIO } from '@/components/watchlist-io'
 import { api } from '@/lib/api'
 import { ageLabel, bestPrice, confidence, money } from '@/lib/format'
 import type { ProductOverview } from '@/lib/types'
@@ -9,18 +10,27 @@ export const dynamic = 'force-dynamic'
 
 async function loadProducts() {
   try {
-    return await api<ProductOverview[]>('/api/products/overview')
+    return await api<ProductOverview[]>('/api/products/overview?include_archived=true')
   } catch {
     return []
   }
 }
 
-export default async function Products() {
+export default async function Products({ searchParams }: { searchParams?: Promise<{ status?: string }> }) {
+  const params = await searchParams ?? {}
   const rows = await loadProducts()
   const active = rows.filter((row) => row.product.is_active)
   const reached = rows.filter((row) => row.latest_signal?.triggered)
   const paused = rows.filter((row) => !row.product.is_active)
   const needsReview = rows.filter((row) => row.latest_clue && !row.latest_verified)
+  const status = params.status ?? 'all'
+  const visibleRows = status === 'active'
+    ? active
+    : status === 'review'
+      ? needsReview
+      : status === 'paused'
+        ? paused
+        : rows
 
   return <>
     <div className="page-title">
@@ -28,7 +38,7 @@ export default async function Products() {
         <h1>Tracked Products</h1>
         <p>Verified checkout prices stay separate from visible or unverified clues.</p>
       </div>
-      <div><button className="btn">Export</button> <button className="btn primary">+ Add product</button></div>
+      <Link className="btn primary" href="#watchlist-tools">Manage watchlist</Link>
     </div>
     <div className="metrics">
       <MetricCard label="All products" value={rows.length} note="Current watchlist" />
@@ -36,12 +46,13 @@ export default async function Products() {
       <MetricCard label="Strategy triggered" value={reached.length} note="Requires final operator review" tone="amber" />
       <MetricCard label="Needs verification" value={needsReview.length} note="Clues are not actionable" tone="cyan" />
     </div>
+    <div id="watchlist-tools"><WatchlistIO /></div>
     <div className="panel">
       <div className="tabs">
-        <button className="tab active">All {rows.length}</button>
-        <button className="tab">Active {active.length}</button>
-        <button className="tab">Needs review {needsReview.length}</button>
-        <button className="tab">Paused {paused.length}</button>
+        <Link className={`tab ${status === 'all' ? 'active' : ''}`} href="/products?status=all">All {rows.length}</Link>
+        <Link className={`tab ${status === 'active' ? 'active' : ''}`} href="/products?status=active">Active {active.length}</Link>
+        <Link className={`tab ${status === 'review' ? 'active' : ''}`} href="/products?status=review">Needs review {needsReview.length}</Link>
+        <Link className={`tab ${status === 'paused' ? 'active' : ''}`} href="/products?status=paused">Paused {paused.length}</Link>
       </div>
       <div className="table-wrap">
         <table className="data-table">
@@ -57,7 +68,7 @@ export default async function Products() {
               <th />
             </tr>
           </thead>
-          <tbody>{rows.map((row) => {
+          <tbody>{visibleRows.map((row) => {
             const trusted = row.latest_fresh_verified ?? row.latest_verified
             const clue = row.latest_clue ?? (row.latest_any?.verification_status === 'VERIFIED_CHECKOUT' ? null : row.latest_any)
             const clueOnly = Boolean(clue && !trusted)
@@ -73,12 +84,12 @@ export default async function Products() {
               </td>
               <td>{row.active_listing_count}</td>
               <td>
-                <b>{trusted ? money(bestPrice(trusted)) : 'No trusted price'}</b>
+                <b>{trusted ? money(bestPrice(trusted), 'No trusted price', trusted.currency || 'CNY') : 'No trusted price'}</b>
                 {!trusted && <small className="muted">Strategy action locked</small>}
               </td>
               <td>
                 {clue ? <div className="clue-cell">
-                  <b>{money(bestPrice(clue))}</b>
+                  <b>{money(bestPrice(clue), 'No clue price', clue.currency || 'CNY')}</b>
                   <small>{clueOnly ? 'UNVERIFIED CLUE / not actionable' : 'Fresh clue for review'}</small>
                 </div> : 'No clue'}
               </td>
@@ -95,7 +106,7 @@ export default async function Products() {
           })}</tbody>
         </table>
       </div>
-      {!rows.length && <div className="empty">No products yet. Add watchlist items or import seed data first.</div>}
+      {!visibleRows.length && <div className="empty">{rows.length ? 'No products match this filter.' : 'No products yet. Add a real source with the command box or import a CSV watchlist.'}</div>}
     </div>
   </>
 }

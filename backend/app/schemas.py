@@ -341,6 +341,15 @@ class WatchlistCommandResponse(BaseModel):
     strategy: StrategyOut | None = None
     listing: ListingOut | None = None
 
+
+class WatchlistImportResponse(BaseModel):
+    created_products: int
+    updated_products: int
+    created_listings: int
+    updated_listings: int
+    created_strategies: int
+    updated_strategies: int
+
 class ProviderStatusOut(BaseModel):
     provider: str
     display_name: str

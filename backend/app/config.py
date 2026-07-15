@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     public_base_url: str = "http://127.0.0.1:8000"
     frontend_origins: str = "http://127.0.0.1:3000,http://localhost:3000"
     operator_api_token: str | None = None
+    local_dev_auth_bypass: bool = False
     cloudflare_access_team_domain: str | None = None
     cloudflare_access_audience: str | None = None
     operator_email: str | None = None

@@ -1,15 +1,20 @@
 import Link from 'next/link'
 
 import { CommandCenter, OperatorMode } from '@/components/experience-modules'
-import { MetricCard, SectionCard, Sparkline, StatusPill } from '@/components/dashboard-ui'
+import { MetricCard, SectionCard, StatusPill } from '@/components/dashboard-ui'
 import { api } from '@/lib/api'
 import type { FrontendBootstrap, SelectionCandidate } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-function cash(value?: number | null, fallback = 'No price') {
+function cash(value?: number | null, fallback = 'No price', currency = 'CNY') {
   if (typeof value !== 'number' || Number.isNaN(value)) return fallback
-  return `CNY ${Math.round(value).toLocaleString('en-US')}`
+  const normalized = currency.toUpperCase()
+  try {
+    return new Intl.NumberFormat(normalized === 'CNY' ? 'zh-CN' : 'en-US', { style: 'currency', currency: normalized, maximumFractionDigits: 0 }).format(value)
+  } catch {
+    return `${normalized} ${Math.round(value).toLocaleString('en-US')}`
+  }
 }
 
 function best(row: SelectionCandidate) {
@@ -56,15 +61,15 @@ export default async function Opportunities() {
     <SectionCard title="Candidate pool" className="ledger-panel">
       <div className="table-wrap">
         <table className="data-table">
-          <thead><tr><th>Rank</th><th>Product</th><th>Current price</th><th>Target</th><th>Trend</th><th>Score</th><th>Recent motion</th><th>Status</th></tr></thead>
+          <thead><tr><th>Rank</th><th>Product</th><th>Current price</th><th>Target</th><th>Trend</th><th>Score</th><th>Evidence window</th><th>Status</th></tr></thead>
           <tbody>{rows.map((row, index) => <tr key={row.product.id}>
             <td><b style={{ color: index < 3 ? '#f7b64b' : '#7f91a8' }}>#{index + 1}</b></td>
             <td><div className="product-cell"><div className="thumb">CM</div><Link href={`/products/${row.product.id}`}><strong>{row.product.name}</strong></Link></div></td>
-            <td>{cash(best(row))}</td>
-            <td>{cash(row.strategy?.trigger_price, 'No target')}</td>
+            <td>{cash(best(row), 'No price', row.latest_verified?.currency ?? row.latest_clue?.currency ?? row.analytics.currency ?? 'CNY')}</td>
+            <td>{cash(row.strategy?.trigger_price, 'No target', row.strategy?.currency ?? 'CNY')}</td>
             <td>{row.analytics.trend}</td>
             <td>{Math.round(row.score)}</td>
-            <td><Sparkline points={[32, 34, 31, 38, 36, 43, 45, 42, 49]} color={row.is_buy_signal ? '#f2f2ee' : '#8d8d8d'} /></td>
+            <td><div><strong>{row.analytics.sample_count} samples</strong><small className="muted">{cash(row.analytics.min_price, 'No price', row.analytics.currency ?? 'CNY')} – {cash(row.analytics.max_price, 'No price', row.analytics.currency ?? 'CNY')}</small></div></td>
             <td><StatusPill tone={row.is_buy_signal ? 'green' : row.status === 'NEAR_TARGET' ? 'amber' : 'blue'}>{row.status}</StatusPill></td>
           </tr>)}</tbody>
         </table>

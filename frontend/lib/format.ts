@@ -1,6 +1,15 @@
-export function money(value?: number | null, fallback = '暂无价格') {
+export function money(value?: number | null, fallback = '暂无价格', currency = 'CNY') {
   if (value === null || value === undefined || Number.isNaN(value)) return fallback
-  return `¥${Math.round(value).toLocaleString('zh-CN')}`
+  const normalized = currency.toUpperCase()
+  try {
+    return new Intl.NumberFormat(normalized === 'CNY' ? 'zh-CN' : 'en-US', {
+      style: 'currency',
+      currency: normalized,
+      maximumFractionDigits: 0,
+    }).format(value)
+  } catch {
+    return `${normalized} ${Math.round(value).toLocaleString('en-US')}`
+  }
 }
 
 export function bestPrice(price?: {

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
@@ -54,6 +57,67 @@ def price_stats(db: Session = Depends(get_db)):
         unverified=counts.get("UNVERIFIED", 0),
         invalid=counts.get("INVALID", 0),
         needs_review=db.query(models.PriceRecord).filter(models.PriceRecord.needs_review.is_(True)).count(),
+    )
+
+
+@router.get("/export.csv", dependencies=[Depends(require_operator)])
+def export_prices(
+    status: str = Query(default="all", pattern="^(all|verified|triggered|invalid|review)$"),
+    limit: int = Query(default=10000, ge=1, le=50000),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.PriceRecord)
+    if status == "verified":
+        query = query.filter(models.PriceRecord.verification_status == "VERIFIED_CHECKOUT")
+    elif status == "invalid":
+        query = query.filter(models.PriceRecord.verification_status == "INVALID")
+    elif status == "review":
+        query = query.filter(models.PriceRecord.needs_review.is_(True))
+    elif status == "triggered":
+        triggered_ids = db.query(models.Signal.price_record_id).filter(
+            models.Signal.price_record_id.is_not(None),
+            models.Signal.triggered.is_(True),
+        )
+        query = query.filter(models.PriceRecord.id.in_(triggered_ids))
+
+    rows = query.order_by(desc(models.PriceRecord.captured_at), desc(models.PriceRecord.id)).limit(limit).all()
+    product_ids = {row.product_id for row in rows}
+    products = {
+        product.id: product.name
+        for product in db.query(models.Product).filter(models.Product.id.in_(product_ids)).all()
+    } if product_ids else {}
+    triggered_price_ids = {
+        price_id
+        for (price_id,) in db.query(models.Signal.price_record_id).filter(
+            models.Signal.price_record_id.in_([row.id for row in rows]),
+            models.Signal.triggered.is_(True),
+        ).all()
+    } if rows else set()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "price_record_id", "captured_at", "product_id", "product_name", "listing_id",
+        "platform", "seller_name", "title", "list_price", "promotion_price", "checkout_price",
+        "shipping_fee", "currency", "verification_status", "confidence_score", "needs_review",
+        "strategy_triggered", "source_url", "screenshot_hash", "verified_at", "valid_until", "verified_by",
+    ])
+    for row in rows:
+        writer.writerow([
+            row.id, row.captured_at.isoformat() if row.captured_at else "", row.product_id,
+            products.get(row.product_id, ""), row.listing_id or "", row.platform or "", row.seller_name or "",
+            row.title or "", row.list_price or "", row.promotion_price or "", row.checkout_price or "",
+            row.shipping_fee or "", row.currency or "", row.verification_status, row.confidence_score or "",
+            row.needs_review, row.id in triggered_price_ids, row.source_url or "", row.screenshot_hash or "",
+            row.verified_at.isoformat() if row.verified_at else "",
+            row.valid_until.isoformat() if row.valid_until else "", row.verified_by or "",
+        ])
+
+    payload = "\ufeff" + output.getvalue()
+    return StreamingResponse(
+        iter([payload]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="price-history-{status}.csv"'},
     )
 
 

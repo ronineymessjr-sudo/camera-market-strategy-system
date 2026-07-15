@@ -3,8 +3,9 @@ from __future__ import annotations
 import hmac
 from dataclasses import dataclass
 from functools import lru_cache
+from urllib.parse import urlparse
 
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 import jwt
 from jwt import PyJWKClient
 
@@ -49,6 +50,7 @@ def _cloudflare_identity(token: str) -> OperatorIdentity:
 
 
 def require_operator(
+    request: Request,
     authorization: str | None = Header(default=None),
     x_operator_token: str | None = Header(default=None),
     cf_access_jwt_assertion: str | None = Header(default=None),
@@ -65,6 +67,17 @@ def require_operator(
         return OperatorIdentity(subject="operator-token", email=None, auth_method="operator-token")
     if cf_access_jwt_assertion:
         return _cloudflare_identity(cf_access_jwt_assertion)
+    if settings.local_dev_auth_bypass:
+        client_host = request.client.host if request.client else None
+        public_host = urlparse(settings.public_base_url).hostname
+        loopback_hosts = {"127.0.0.1", "::1", "localhost"}
+        if (
+            settings.database_url.lower().startswith("sqlite")
+            and public_host in loopback_hosts
+            and client_host in loopback_hosts
+        ):
+            return OperatorIdentity(subject="local-dev", email=None, auth_method="local-dev")
+        raise HTTPException(503, "Local development auth bypass is restricted to loopback SQLite runtime")
     if not expected and not settings.cloudflare_access_audience:
         raise HTTPException(503, "Operator authentication is not configured")
     raise HTTPException(401, "Operator credentials required")

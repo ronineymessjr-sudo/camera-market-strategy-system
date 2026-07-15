@@ -1,9 +1,9 @@
 {
-  "name": "camera-market-demo-frontend",
+  "name": "camera-market-frontend",
   "version": "0.15.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0",
+    "dev": "next dev -H 127.0.0.1 -p 3000",
     "build": "next build",
     "start": "next start -H 0.0.0.0"
   },

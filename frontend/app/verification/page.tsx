@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { VerificationCockpit } from '@/components/experience-modules'
+import { EvidenceExport } from '@/components/evidence-export'
 import { VerifyPriceForm } from '@/components/verify-price-form'
 import { MetricCard, SectionCard, StatusPill } from '@/components/dashboard-ui'
 import { api } from '@/lib/api'
@@ -84,6 +85,7 @@ export default async function Verification({ searchParams }: { searchParams?: Pr
         <h1>Verification Cockpit</h1>
         <p>Only checkout evidence can promote a clue into a trusted price. Visible prices stay locked until reviewed.</p>
       </div>
+      <EvidenceExport />
     </div>
 
     <div className="metrics">

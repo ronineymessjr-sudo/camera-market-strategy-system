@@ -10,8 +10,16 @@ from app import models, schemas
 from app.database import get_db
 from app.integrations.registry import provider_statuses
 from app.services.integration_service import latest_integration_runs
-from app.services.overview_service import active_listing_counts, latest_prices_by_product, latest_signals_by_product
+from app.services.overview_service import (
+    active_listing_counts,
+    active_strategies_by_product,
+    latest_prices_by_product,
+    latest_signals_by_product,
+    recent_prices_by_product,
+)
+from app.services.price_analytics import calculate_product_analytics
 from app.services.selection_engine import build_selection_candidates
+from app.services.signal_service import is_price_fresh
 from app.services.source_health_service import build_source_health
 
 
@@ -38,19 +46,37 @@ def bootstrap(
     verified_by_product = latest_prices_by_product(db, product_ids, ["VERIFIED_CHECKOUT"], trusted_only=True)
     clues_by_product = latest_prices_by_product(db, product_ids, ["VISIBLE_PRICE", "UNVERIFIED"])
     signals_by_product = latest_signals_by_product(db, product_ids)
+    strategies_by_product = active_strategies_by_product(db, product_ids)
+    recent_by_product = recent_prices_by_product(db, product_ids)
     listing_counts = active_listing_counts(db, product_ids)
 
     for product in products:
+        latest_verified = verified_by_product.get(product.id)
+        strategy = strategies_by_product.get(product.id)
+        latest_fresh_verified = None
+        if (
+            strategy
+            and latest_verified
+            and latest_verified.currency
+            and latest_verified.currency.upper() == strategy.currency.upper()
+            and is_price_fresh(latest_verified, strategy)
+        ):
+            latest_fresh_verified = latest_verified
         product_overviews.append(schemas.ProductOverviewOut(
             product=product,
             latest_any=latest_by_product.get(product.id),
-            latest_verified=verified_by_product.get(product.id),
-            latest_fresh_verified=None,
+            latest_verified=latest_verified,
+            latest_fresh_verified=latest_fresh_verified,
             latest_clue=clues_by_product.get(product.id),
             latest_signal=signals_by_product.get(product.id),
-            recent_prices=[],
+            recent_prices=recent_by_product.get(product.id, []),
             active_listing_count=listing_counts.get(product.id, 0),
-            analytics=None,
+            analytics=calculate_product_analytics(
+                db,
+                product.id,
+                window_days=30,
+                preferred_currency=strategy.currency if strategy else "CNY",
+            ),
         ))
 
     counts = dict(

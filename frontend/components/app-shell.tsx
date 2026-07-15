@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation'
 
 import { AppMotion, RouteStage } from '@/components/motion-system'
 import { Breadcrumbs, RouteProgress } from '@/components/navigation-feedback'
+import { GlobalSearch } from '@/components/global-search'
+import { RuntimeStatus } from '@/components/runtime-status'
 
 const nav = [
   ['Command', '/', '01'],
@@ -16,6 +18,7 @@ const nav = [
   ['Reports', '/reports', '07'],
   ['Strategy Lab', '/strategies', '08'],
   ['Source Atlas', '/sources', '09'],
+  ['Settings', '/settings', '10'],
 ]
 
 const mobileNav = [
@@ -34,12 +37,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav className="side-nav">
         {nav.map(([label, href, icon]) => <Link key={href} href={href} className={`side-link ${path === href || (href !== '/' && path.startsWith(href)) ? 'active' : ''}`}><span>{icon}</span>{label}</Link>)}
       </nav>
-      <div className="sidebar-foot"><div className="health-dot" /><div><strong>Real flow ready</strong><small>signals require checkout evidence</small></div></div>
+      <div className="sidebar-foot"><div className="health-dot" /><div><strong>Human review required</strong><small>the system never buys automatically</small></div></div>
     </aside>
     <div className="main-column">
       <header className="topbar">
-        <div className="searchbox"><span>Search products, brands, platforms...</span><kbd>Ctrl K</kbd></div>
-        <div className="top-actions"><button>All sources</button><button>Last 30d</button><span className="live"><i />API connected</span><div className="avatar">YM</div></div>
+        <GlobalSearch />
+        <div className="top-actions"><Link href="/sources">Sources</Link><Link href="/history">30d history</Link><RuntimeStatus /><div className="avatar">YM</div></div>
       </header>
       <main className="content"><Breadcrumbs /><RouteStage>{children}</RouteStage></main>
       <nav className="mobile-tabbar" aria-label="Primary mobile navigation">

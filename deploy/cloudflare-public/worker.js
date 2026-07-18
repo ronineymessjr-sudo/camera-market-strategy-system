@@ -10,135 +10,238 @@ const SECURITY_HEADERS = {
     "style-src 'unsafe-inline'",
     "script-src 'unsafe-inline'",
     "img-src data:",
-    "connect-src 'none'",
+    "connect-src 'self'",
     "font-src 'none'",
     "base-uri 'none'",
-    "form-action 'none'",
+    "form-action 'self'",
     "frame-ancestors 'none'",
   ].join('; '),
 }
 
-function jsonResponse(body, init = {}) {
-  return Response.json(body, {
-    ...init,
-    headers: {
-      ...SECURITY_HEADERS,
-      'cache-control': 'no-store',
-      ...(init.headers ?? {}),
-    },
-  })
-}
-
-function textResponse(body, contentType) {
-  return new Response(body, {
-    headers: {
-      ...SECURITY_HEADERS,
-      'content-type': contentType,
-      'cache-control': 'public, max-age=300',
-    },
-  })
+const COPY = {
+  en: {
+    htmlLang: 'en',
+    title: 'Camera Market Intelligence — Verified price evidence',
+    description: 'Track camera-market prices, verify checkout evidence, and turn trusted data into reviewable strategy signals.',
+    brand: 'Camera Market',
+    brandSub: 'VERIFIED PRICE INTELLIGENCE',
+    navSource: 'Source code',
+    navLaunch: 'Open command center',
+    navPreview: 'Private command center',
+    eyebrow: 'REAL PRICE · VERIFIED EVIDENCE · HUMAN DECISION',
+    headline: 'See the real price.\nDecide with evidence.',
+    sub: 'A camera-market research system that separates visible price clues from checkout-verified evidence. It never buys automatically.',
+    primary: 'Open command center',
+    secondary: 'View source',
+    gateTitle: 'Evidence gate',
+    gateBody: 'Only a fresh VERIFIED_CHECKOUT record can trigger an actionable strategy signal.',
+    clueTitle: 'Visible price clue',
+    clueBody: 'Search and marketplace prices remain review candidates until checkout is verified.',
+    humanTitle: 'Human control',
+    humanBody: 'Every decision stays with the operator. The system records evidence and explains signals.',
+    feedbackTitle: 'Help shape the public beta',
+    feedbackBody: 'Share what is unclear, missing, or useful. Feedback is stored anonymously; do not include personal or account information.',
+    categoryLabel: 'Feedback type',
+    categories: [['general', 'General'], ['data', 'Data coverage'], ['usability', 'Usability'], ['translation', 'Translation']],
+    messageLabel: 'Your feedback',
+    placeholder: 'What should we improve next?',
+    privacy: 'Anonymous feedback only. No email, phone number, IP address, or account credentials are requested.',
+    send: 'Send feedback',
+    sending: 'Sending…',
+    success: 'Thank you. Your feedback is now in the review queue.',
+    error: 'Feedback could not be sent. Please try again.',
+  },
+  zh: {
+    htmlLang: 'zh-CN',
+    title: '相机市场情报 — 可核验的价格证据',
+    description: '追踪相机市场价格，核验结算证据，并将可信数据转化为可复核的策略信号。',
+    brand: '相机市场情报',
+    brandSub: '可核验价格智能',
+    navSource: '源代码',
+    navLaunch: '打开指挥中心',
+    navPreview: '私有指挥中心',
+    eyebrow: '真实价格 · 可核验证据 · 人工决策',
+    headline: '看见真实价格，\n再用证据做决定。',
+    sub: '一套把网页可见价格线索与结算核验证据严格分开的相机市场研究系统。系统不会自动下单。',
+    primary: '打开指挥中心',
+    secondary: '查看源代码',
+    gateTitle: '证据闸门',
+    gateBody: '只有新鲜的 VERIFIED_CHECKOUT 记录才能触发可执行策略信号。',
+    clueTitle: '可见价格线索',
+    clueBody: '搜索页和平台价格在完成结算核验前，只进入人工复核队列。',
+    humanTitle: '人工控制',
+    humanBody: '所有决策都由操作员完成。系统只负责记录证据并解释信号。',
+    feedbackTitle: '一起完善公开测试版',
+    feedbackBody: '告诉我们哪里不清楚、缺了什么或哪些功能有用。反馈匿名保存，请勿填写个人或账户信息。',
+    categoryLabel: '反馈类型',
+    categories: [['general', '综合反馈'], ['data', '数据覆盖'], ['usability', '使用体验'], ['translation', '翻译问题']],
+    messageLabel: '你的反馈',
+    placeholder: '下一步最应该改进什么？',
+    privacy: '仅收集匿名反馈，不要求邮箱、手机号、IP 地址或任何账户凭据。',
+    send: '提交反馈',
+    sending: '提交中…',
+    success: '谢谢，反馈已进入集中复核队列。',
+    error: '反馈提交失败，请稍后重试。',
+  },
 }
 
 export default {
   async fetch(request, env = {}) {
     const url = new URL(request.url)
     const method = request.method.toUpperCase()
-    const appUrl = env.APP_URL || ''
-    const appConfigured = /^https:\/\//.test(appUrl)
+
+    if (url.pathname === '/api/feedback' && method === 'POST') {
+      return submitFeedback(request, env)
+    }
+
+    if (url.pathname === '/api/feedback/status' && method === 'GET') {
+      return feedbackStatus(env)
+    }
 
     if (!['GET', 'HEAD'].includes(method)) {
-      return jsonResponse(
-        { ok: false, error: 'method_not_allowed', method },
-        { status: 405, headers: { allow: 'GET, HEAD' } },
-      )
+      return jsonResponse({ ok: false, error: 'method_not_allowed' }, 405, { allow: 'GET, HEAD, POST' })
     }
 
     if (url.pathname === '/health') {
-      const response = jsonResponse({
+      return headSafe(method, jsonResponse({
         ok: true,
-        service: 'camera-market-public-entry',
-        version: '0.15-entry',
-        app_url: appConfigured ? appUrl : null,
-        app_configured: appConfigured,
-      })
-      return method === 'HEAD' ? new Response(null, response) : response
+        service: 'camera-market-public-beta',
+        version: '0.16-feedback',
+        feedback_store: Boolean(env.FEEDBACK_DB),
+        app_configured: /^https:\/\//.test(env.APP_URL || ''),
+      }))
     }
 
     if (url.pathname === '/robots.txt') {
-      const response = textResponse(`User-agent: *\nAllow: /\nSitemap: ${url.origin}/sitemap.xml\n`, 'text/plain; charset=utf-8')
-      return method === 'HEAD' ? new Response(null, response) : response
+      return headSafe(method, textResponse(`User-agent: *\nAllow: /\nSitemap: ${url.origin}/sitemap.xml\n`, 'text/plain; charset=utf-8'))
     }
 
     if (url.pathname === '/sitemap.xml') {
-      const response = textResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${url.origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`, 'application/xml; charset=utf-8')
-      return method === 'HEAD' ? new Response(null, response) : response
+      return headSafe(method, textResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${url.origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`, 'application/xml; charset=utf-8'))
     }
 
     if (url.pathname === '/llms.txt') {
-      const response = textResponse(`# Camera Market Strategy System\n\nA single-operator camera price intelligence system. Visible and unverified prices are clues only. A strategy can trigger only from a fresh VERIFIED_CHECKOUT record backed by server-recorded operator-uploaded checkout evidence. The system never purchases automatically.\n\nSource: ${GITHUB_URL}\n`, 'text/plain; charset=utf-8')
-      return method === 'HEAD' ? new Response(null, response) : response
+      return headSafe(method, textResponse(`# Camera Market Strategy System\n\nA bilingual public beta for verified camera-market price intelligence. Visible prices are clues only. A strategy can trigger only from fresh VERIFIED_CHECKOUT evidence. The system never purchases automatically.\n\nSource: ${GITHUB_URL}\n`, 'text/plain; charset=utf-8'))
     }
 
     if (url.pathname !== '/' && url.pathname !== '/index.html') {
-      const response = jsonResponse(
-        { ok: false, error: 'not_found', path: url.pathname },
-        { status: 404 },
-      )
-      return method === 'HEAD' ? new Response(null, response) : response
+      return headSafe(method, jsonResponse({ ok: false, error: 'not_found', path: url.pathname }, 404))
     }
 
-    const response = new Response(renderPage(appUrl, appConfigured, url.origin), {
-      headers: {
-        ...SECURITY_HEADERS,
-        'content-type': 'text/html; charset=utf-8',
-        'cache-control': 'public, max-age=60, stale-while-revalidate=300',
-      },
+    const locale = selectLocale(url, request.headers.get('accept-language'))
+    const response = new Response(renderPage(url.origin, env.APP_URL || '', locale), {
+      headers: pageHeaders(),
     })
-    return method === 'HEAD' ? new Response(null, response) : response
+    return headSafe(method, response)
   },
 }
 
-function renderPage(appUrl, appConfigured, publicOrigin) {
+async function submitFeedback(request, env) {
+  if (!env.FEEDBACK_DB) return jsonResponse({ ok: false, error: 'feedback_store_unavailable' }, 503)
+
+  const contentLength = Number(request.headers.get('content-length') || 0)
+  if (contentLength > 8192) return jsonResponse({ ok: false, error: 'payload_too_large' }, 413)
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return jsonResponse({ ok: false, error: 'invalid_json' }, 400)
+  }
+
+  if (body.website) return jsonResponse({ ok: true })
+  const message = typeof body.message === 'string' ? body.message.trim() : ''
+  const locale = body.locale === 'zh' ? 'zh' : 'en'
+  const categories = new Set(['general', 'data', 'usability', 'translation'])
+  const category = categories.has(body.category) ? body.category : 'general'
+  const page = typeof body.page === 'string' && body.page.startsWith('/') ? body.page.slice(0, 200) : '/'
+
+  if (message.length < 10 || message.length > 2000) {
+    return jsonResponse({ ok: false, error: 'message_length', min: 10, max: 2000 }, 422)
+  }
+
+  const result = await env.FEEDBACK_DB.prepare(
+    'INSERT INTO feedback (message, locale, category, page) VALUES (?, ?, ?, ?)',
+  ).bind(message, locale, category, page).run()
+
+  if (!result.success) return jsonResponse({ ok: false, error: 'feedback_store_failed' }, 500)
+  return jsonResponse({ ok: true, id: result.meta?.last_row_id ?? null }, 201)
+}
+
+async function feedbackStatus(env) {
+  if (!env.FEEDBACK_DB) return jsonResponse({ ok: false, error: 'feedback_store_unavailable' }, 503)
+  const summary = await env.FEEDBACK_DB.prepare(
+    "SELECT COUNT(*) AS total, MAX(created_at) AS latest FROM feedback WHERE status = 'NEW'",
+  ).first()
+  return jsonResponse({ ok: true, pending: Number(summary?.total || 0), latest: summary?.latest || null })
+}
+
+function selectLocale(url, acceptLanguage = '') {
+  const requested = url.searchParams.get('lang')
+  if (requested === 'zh' || requested === 'en') return requested
+  return /^zh\b/i.test(acceptLanguage) ? 'zh' : 'en'
+}
+
+function headSafe(method, response) {
+  return method === 'HEAD' ? new Response(null, response) : response
+}
+
+function jsonResponse(body, status = 200, extraHeaders = {}) {
+  return Response.json(body, {
+    status,
+    headers: { ...SECURITY_HEADERS, 'cache-control': 'no-store', ...extraHeaders },
+  })
+}
+
+function textResponse(body, contentType) {
+  return new Response(body, {
+    headers: { ...SECURITY_HEADERS, 'content-type': contentType, 'cache-control': 'public, max-age=300' },
+  })
+}
+
+function pageHeaders() {
+  return {
+    ...SECURITY_HEADERS,
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'public, max-age=60, stale-while-revalidate=300',
+  }
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char])
+}
+
+function renderPage(origin, appUrl, locale) {
+  const copy = COPY[locale]
+  const appConfigured = /^https:\/\//.test(appUrl)
   const launchHref = appConfigured ? appUrl : GITHUB_URL
-  const launchLabel = appConfigured ? '进入系统' : '等待云端应用地址'
-  return `<!doctype html><html lang="zh-CN"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="description" content="相机价格追踪与策略平台，记录真实价格、核验证据并生成购买提醒。"/>
-<link rel="canonical" href="${publicOrigin}/"/>
-<meta property="og:type" content="website"/><meta property="og:url" content="${publicOrigin}/"/>
-<meta property="og:title" content="影价追踪 | Camera Market Intelligence"/>
-<meta property="og:description" content="区分网页价格线索与真实结算证据，只让可信到手价参与策略。"/>
-<meta name="twitter:card" content="summary"/>
-<title>影价追踪 | Camera Market Intelligence</title>
-<script type="application/ld+json">${JSON.stringify({
-    '@context': 'https://schema.org',
-    '@graph': [
-      { '@type': 'WebSite', name: '影价追踪', url: `${publicOrigin}/` },
-      { '@type': 'SoftwareApplication', name: 'Camera Market Strategy System', applicationCategory: 'BusinessApplication', operatingSystem: 'Web', url: `${publicOrigin}/`, description: 'Verified camera-market price intelligence for a single operator.' },
-      { '@type': 'FAQPage', mainEntity: [
-        { '@type': 'Question', name: '网页显示价格会直接触发购买策略吗？', acceptedAnswer: { '@type': 'Answer', text: '不会。网页可见价和未核验价仅作为线索。' } },
-        { '@type': 'Question', name: '什么价格可以触发策略？', acceptedAnswer: { '@type': 'Answer', text: '只有仍在有效期内、币种匹配并关联操作员上传结算证据的 VERIFIED_CHECKOUT 价格。' } },
-        { '@type': 'Question', name: '系统会自动下单吗？', acceptedAnswer: { '@type': 'Answer', text: '不会。系统只提供价格情报、人工核验、策略信号和报告。' } },
-      ] },
-    ],
-  })}</script>
-<style>
-:root{color-scheme:dark;--text:#f6f6f2;--muted:#8b8b86;--line:rgba(255,255,255,.13);font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#020202;color:var(--text)}body{overflow-x:hidden;background:radial-gradient(circle at 50% 44%,#1c1c1c 0,transparent 20%),#020202}a{color:inherit;text-decoration:none}
-#vortex{position:fixed;inset:0;width:100%;height:100%;z-index:0}.veil{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(circle at 50% 50%,transparent 0 22%,rgba(0,0,0,.18) 44%,rgba(0,0,0,.82) 82%,#000 100%)}
-.shell{position:relative;z-index:2;min-height:100vh;padding:24px clamp(18px,4vw,56px) 32px}nav{display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:11px}.mark{width:40px;height:40px;border:1px solid #fff;border-radius:50%;display:grid;place-items:center}.brand strong{display:block;font-size:15px;letter-spacing:.12em}.brand small{display:block;color:#666;font-size:9px;letter-spacing:.17em;margin-top:4px}.nav-actions{display:flex;align-items:center;gap:14px}.nav-actions a:first-child{font-size:11px;color:#888}.launch{background:#f4f4f0;color:#050505;padding:11px 17px;border-radius:999px;font-size:11px}
-main{min-height:calc(100vh - 64px);display:grid;place-items:center;text-align:center}.hero{width:min(920px,100%);display:flex;flex-direction:column;align-items:center}.eyebrow{font-size:9px;letter-spacing:.5em;color:#888;margin-bottom:25px}h1{font-size:clamp(50px,9vw,116px);line-height:.94;letter-spacing:-.065em;margin:0}h1 span{display:block;color:transparent;-webkit-text-stroke:1px rgba(255,255,255,.88)}.sub{max-width:620px;color:#aaa;font-size:15px;line-height:1.9;margin:27px auto 0}.actions{display:flex;gap:11px;flex-wrap:wrap;justify-content:center;margin-top:31px}.btn{min-height:49px;padding:0 21px;border:1px solid #333;border-radius:999px;display:inline-flex;align-items:center;background:#0a0a0adc;backdrop-filter:blur(14px);font-size:12px}.btn.primary{background:#f4f4f0;color:#050505;border-color:#fff}
-.rule{margin-top:52px;display:grid;grid-template-columns:repeat(3,1fr);width:min(760px,100%);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.rule div{padding:16px 13px;border-right:1px solid var(--line)}.rule div:last-child{border-right:0}.rule b{display:block;font-size:11px}.rule span{display:block;color:#666;font-size:9px;margin-top:6px}
-@media(max-width:700px){.shell{padding:18px}.nav-actions a:first-child{display:none}.rule{grid-template-columns:1fr}.rule div{border-right:0;border-bottom:1px solid var(--line)}.rule div:last-child{border-bottom:0}h1{font-size:clamp(43px,16vw,74px)}}
-@media(prefers-reduced-motion:reduce){#vortex{display:none}}
-</style></head><body>
-<canvas id="vortex" aria-hidden="true"></canvas><div class="veil"></div><div class="shell">
-<nav><a class="brand" href="/"><span class="mark">Ø</span><span><strong>影价追踪</strong><small>CAMERA MARKET INTELLIGENCE</small></span></a><div class="nav-actions"><a href="${GITHUB_URL}" target="_blank" rel="noopener noreferrer">GitHub</a><a class="launch" href="${launchHref}">${launchLabel}</a></div></nav>
-<main><section class="hero"><div class="eyebrow">REAL PRICE · VERIFIED EVIDENCE · DECISION</div><h1>看见真实价格<span>再决定是否购买</span></h1><p class="sub">记录真实商品链接、价格证据与变化趋势。系统只把已核验到手价作为可执行信号，其余数据只作为线索。</p><div class="actions"><a class="btn primary" href="${launchHref}">${appConfigured ? '打开完整看板' : '查看部署状态'}</a><a class="btn" href="${GITHUB_URL}" target="_blank" rel="noopener noreferrer">查看开源代码</a></div><div class="rule"><div><b>已核验到手价</b><span>可触发策略</span></div><div><b>网页可见价</b><span>仅作为证据</span></div><div><b>未核验线索</b><span>等待人工确认</span></div></div></section></main></div>
-<script>
-(()=>{const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;if(reduced)return;const c=document.getElementById('vortex'),x=c.getContext('2d');if(!x)return;let d=Math.min(devicePixelRatio||1,2),w,h,cx,cy,p=[];
-function resize(){w=innerWidth;h=innerHeight;cx=w/2;cy=h/2;c.width=w*d;c.height=h*d;c.style.width=w+'px';c.style.height=h+'px';x.setTransform(d,0,0,d,0,0);const ceiling=w<700?520:900,n=Math.min(ceiling,Math.max(260,Math.floor(w*h/1900)));p=Array.from({length:n},(_,i)=>({r:36+Math.pow(Math.random(),.54)*Math.min(w,h)*.44,a:Math.random()*Math.PI*2,s:(.0015+Math.random()*.005)*(Math.random()>.5?1:-1),z:.3+Math.random()*1.7,l:Math.random()*6.28,arm:i%6}))}
-function draw(t){x.clearRect(0,0,w,h);x.globalCompositeOperation='lighter';const time=t*.001;for(const q of p){q.a+=q.s;q.l+=.01;const flame=Math.sin(q.l*2.1+q.arm)*12+Math.sin(time*1.6+q.a*4)*7,rr=q.r+flame,ang=q.a+q.arm*Math.PI/3+rr*.013,xx=cx+Math.cos(ang)*rr,yy=cy+Math.sin(ang)*rr*.68,hot=1-Math.min(1,Math.abs(rr-150)/Math.max(150,rr)),alpha=.07+hot*.36+(1-Math.min(1,rr/(Math.min(w,h)*.5)))*.11;x.beginPath();x.fillStyle='rgba(255,255,255,'+alpha.toFixed(3)+')';x.arc(xx,yy,q.z*(.75+hot),0,6.283);x.fill()}x.globalCompositeOperation='source-over';const g=x.createRadialGradient(cx,cy,8,cx,cy,Math.min(w,h)*.32);g.addColorStop(0,'rgba(255,255,255,.96)');g.addColorStop(.055,'rgba(255,255,255,.28)');g.addColorStop(.22,'rgba(255,255,255,.06)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,w,h);requestAnimationFrame(draw)}
-addEventListener('resize',resize,{passive:true});resize();requestAnimationFrame(draw)})()
-</script></body></html>`
+  const headline = copy.headline.split('\n').map(escapeHtml).join('<br>')
+  const categories = copy.categories.map(([value, label]) => `<option value="${value}">${escapeHtml(label)}</option>`).join('')
+  const alternateLocale = locale === 'zh' ? 'en' : 'zh'
+  const alternateLabel = locale === 'zh' ? 'EN' : '中文'
+
+  return `<!doctype html>
+<html lang="${copy.htmlLang}">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(copy.title)}</title><meta name="description" content="${escapeHtml(copy.description)}">
+  <link rel="canonical" href="${origin}/"><meta name="theme-color" content="#05070a">
+  <meta property="og:title" content="${escapeHtml(copy.title)}"><meta property="og:description" content="${escapeHtml(copy.description)}"><meta property="og:type" content="website"><meta property="og:url" content="${origin}/">
+  <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Camera Market Intelligence', applicationCategory: 'BusinessApplication', operatingSystem: 'Web' }).replaceAll('<', '\\u003c')}</script>
+  <style>
+    *{box-sizing:border-box}html{background:#05070a;color:#f7f7f2;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{margin:0;min-height:100vh;background:radial-gradient(circle at 72% 18%,rgba(255,176,72,.16),transparent 27%),radial-gradient(circle at 14% 72%,rgba(94,198,255,.1),transparent 28%),#05070a}.shell{width:min(1180px,calc(100% - 40px));margin:auto}.nav{height:84px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff1a}.brand{display:flex;gap:12px;align-items:center;color:inherit;text-decoration:none}.mark{width:38px;height:38px;border:1px solid #ffffff38;border-radius:50%;display:grid;place-items:center;font-weight:800;letter-spacing:-.08em}.brand strong,.brand small{display:block}.brand small{font-size:10px;color:#a9adb5;letter-spacing:.16em;margin-top:3px}.nav-actions{display:flex;align-items:center;gap:10px}.nav-actions a{color:#d5d7db;text-decoration:none;font-size:13px;padding:10px 14px}.nav-actions .launch{border:1px solid #f6a744;color:#fff;border-radius:999px}.lang{border:0;background:#ffffff0d;border-radius:999px}.hero{padding:98px 0 64px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:70px;align-items:center}.eyebrow{font-size:11px;color:#f6a744;letter-spacing:.18em;font-weight:700}.hero h1{font-size:clamp(48px,7vw,90px);line-height:.98;letter-spacing:-.065em;margin:20px 0 26px;max-width:820px}.sub{font-size:19px;line-height:1.65;color:#b9bec7;max-width:700px}.actions{display:flex;gap:12px;margin-top:34px}.btn{display:inline-flex;padding:13px 18px;border-radius:10px;border:1px solid #ffffff26;color:#fff;text-decoration:none;font-weight:700}.btn.primary{background:#f6a744;color:#171008;border-color:#f6a744}.lens{aspect-ratio:1;border-radius:50%;border:1px solid #ffffff21;display:grid;place-items:center;box-shadow:0 0 100px #f6a74418}.lens:before{content:"";width:58%;aspect-ratio:1;border-radius:50%;border:1px solid #f6a74480;box-shadow:inset 0 0 70px #5ec6ff24,0 0 50px #f6a74438}.principles{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#ffffff14;border:1px solid #ffffff14}.principles article{background:#090c11;padding:30px}.principles b{display:block;font-size:17px;margin-bottom:10px}.principles p{margin:0;color:#9da3ad;line-height:1.55;font-size:14px}.feedback{margin:64px 0 96px;display:grid;grid-template-columns:.85fr 1.15fr;gap:70px;padding:52px;border:1px solid #ffffff18;background:#0a0d12}.feedback h2{font-size:clamp(32px,4vw,52px);letter-spacing:-.04em;margin:0 0 16px}.feedback-copy p{color:#aeb4be;line-height:1.65}.feedback form{display:grid;gap:14px}.feedback label{font-size:12px;font-weight:700;color:#d7d9dd}.feedback select,.feedback textarea{width:100%;margin-top:7px;border:1px solid #ffffff25;background:#05070a;color:#f7f7f2;padding:13px;border-radius:8px;font:inherit}.feedback textarea{min-height:150px;resize:vertical}.feedback button{justify-self:start;border:0;border-radius:8px;background:#f6a744;color:#171008;padding:13px 19px;font-weight:800;cursor:pointer}.feedback button:disabled{opacity:.65;cursor:wait}.privacy,.status{font-size:12px;color:#888f9b;margin:0}.status{min-height:18px;color:#7fd8a2}.trap{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;overflow:hidden!important}.footer{border-top:1px solid #ffffff17;padding:26px 0 44px;color:#777e89;font-size:12px;display:flex;justify-content:space-between}
+    @media(max-width:800px){.shell{width:min(100% - 24px,680px)}.nav{height:auto;padding:18px 0;align-items:flex-start}.brand small,.nav-source{display:none}.nav-actions{gap:2px}.nav-actions a{padding:9px}.hero{grid-template-columns:1fr;padding:70px 0 44px;gap:38px}.hero h1{font-size:clamp(44px,15vw,68px)}.lens{width:min(72vw,330px);margin:auto}.principles{grid-template-columns:1fr}.feedback{grid-template-columns:1fr;gap:28px;padding:28px;margin-top:44px}.footer{display:block;line-height:1.8}}
+    @media(prefers-reduced-motion:no-preference){.lens{animation:breathe 7s ease-in-out infinite}@keyframes breathe{50%{transform:scale(1.025);box-shadow:0 0 140px #f6a74426}}}
+  </style>
+</head>
+<body><div class="shell">
+  <nav class="nav"><a class="brand" href="/?lang=${locale}"><span class="mark">CM</span><span><strong>${escapeHtml(copy.brand)}</strong><small>${escapeHtml(copy.brandSub)}</small></span></a><div class="nav-actions"><a class="nav-source" href="${GITHUB_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.navSource)}</a><a class="lang" href="/?lang=${alternateLocale}" hreflang="${alternateLocale}">${alternateLabel}</a><a class="launch" href="${launchHref}">${escapeHtml(appConfigured ? copy.navLaunch : copy.navPreview)}</a></div></nav>
+  <main>
+    <section class="hero"><div><div class="eyebrow">${escapeHtml(copy.eyebrow)}</div><h1>${headline}</h1><p class="sub">${escapeHtml(copy.sub)}</p><div class="actions"><a class="btn primary" href="${launchHref}">${escapeHtml(appConfigured ? copy.primary : copy.secondary)}</a><a class="btn" href="#feedback">${escapeHtml(copy.feedbackTitle)}</a></div></div><div class="lens" aria-hidden="true"></div></section>
+    <section class="principles"><article><b>${escapeHtml(copy.gateTitle)}</b><p>${escapeHtml(copy.gateBody)}</p></article><article><b>${escapeHtml(copy.clueTitle)}</b><p>${escapeHtml(copy.clueBody)}</p></article><article><b>${escapeHtml(copy.humanTitle)}</b><p>${escapeHtml(copy.humanBody)}</p></article></section>
+    <section class="feedback" id="feedback"><div class="feedback-copy"><h2>${escapeHtml(copy.feedbackTitle)}</h2><p>${escapeHtml(copy.feedbackBody)}</p></div><form id="feedback-form"><label>${escapeHtml(copy.categoryLabel)}<select name="category">${categories}</select></label><label>${escapeHtml(copy.messageLabel)}<textarea name="message" minlength="10" maxlength="2000" required placeholder="${escapeHtml(copy.placeholder)}"></textarea></label><label class="trap" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label><p class="privacy">${escapeHtml(copy.privacy)}</p><button type="submit">${escapeHtml(copy.send)}</button><p class="status" role="status" aria-live="polite"></p></form></section>
+  </main><footer class="footer"><span>Camera Market Strategy System · Public beta</span><span>VISIBLE PRICE ≠ VERIFIED_CHECKOUT</span></footer>
+</div>
+<script>(()=>{const form=document.getElementById('feedback-form'),button=form.querySelector('button'),status=form.querySelector('.status');form.addEventListener('submit',async event=>{event.preventDefault();button.disabled=true;button.textContent=${JSON.stringify(copy.sending)};status.textContent='';const data=new FormData(form);try{const response=await fetch('/api/feedback',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({category:data.get('category'),message:data.get('message'),website:data.get('website'),locale:${JSON.stringify(locale)},page:location.pathname})});if(!response.ok)throw new Error('request failed');form.reset();status.textContent=${JSON.stringify(copy.success)}}catch{status.textContent=${JSON.stringify(copy.error)}}finally{button.disabled=false;button.textContent=${JSON.stringify(copy.send)}}})})()</script>
+</body></html>`
 }

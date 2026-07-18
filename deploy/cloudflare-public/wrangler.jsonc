@@ -1,7 +1,15 @@
 {
-  "name": "camera-market-test-entry",
+  "name": "camera-market-intelligence",
   "main": "worker.js",
-  "compatibility_date": "2026-06-02",
+  "compatibility_date": "2026-07-18",
+  "d1_databases": [
+    {
+      "binding": "FEEDBACK_DB",
+      "database_name": "camera-market-feedback",
+      "database_id": "7ea8536e-c5b1-4b35-9d2f-5c0d4c24d169",
+      "migrations_dir": "migrations"
+    }
+  ],
   "observability": {
     "enabled": true
   }

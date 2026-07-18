@@ -124,10 +124,12 @@ where s.triggered = true
   - [ ] `EBAY_CLIENT_SECRET`
   - [ ] marketplace ID
 - [ ] Amazon:
-  - [ ] `AMAZON_ACCESS_KEY`
-  - [ ] `AMAZON_SECRET_KEY`
+  - [ ] approved Amazon Associates account and 10 qualifying sales in the last 30 days
+  - [ ] `AMAZON_CREDENTIAL_ID`
+  - [ ] `AMAZON_CREDENTIAL_SECRET`
+  - [ ] `AMAZON_CREDENTIAL_VERSION`
   - [ ] `AMAZON_PARTNER_TAG`
-  - [ ] PA-API or SP-API scope decision
+  - [ ] Creators API `SearchItems` access
 - [ ] After each provider is configured, run:
   - [ ] `GET /api/integrations/providers`
   - [ ] `POST /api/integrations/{provider}/sync`

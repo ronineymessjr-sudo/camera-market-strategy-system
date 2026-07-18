@@ -1,4 +1,12 @@
+import json
+
+import httpx
+import pytest
+
+from app.config import settings
+from app.integrations import amazon as amazon_module
 from app.integrations.amazon import AmazonProductProvider
+from app.integrations.base import ProviderSearchRequest
 from app.integrations.ebay import EbayBrowseProvider
 from app.integrations.jd import JDUnionProvider
 from app.integrations.pdd import PddDdkProvider
@@ -56,14 +64,17 @@ def test_ebay_offer_normalization():
 
 def test_amazon_offer_normalization():
     offer = AmazonProductProvider()._normalize({
-        "ASIN": "B00TEST",
-        "DetailPageURL": "https://www.amazon.com/dp/B00TEST",
-        "ItemInfo": {"Title": {"DisplayValue": "Mirrorless Camera"}},
-        "Offers": {
-            "Listings": [{
-                "Price": {"Amount": 1299.0, "Currency": "USD"},
-                "SavingBasis": {"Amount": 1499.0, "Currency": "USD"},
-                "Availability": {"Type": "Now"},
+        "asin": "B00TEST",
+        "detailPageURL": "https://www.amazon.com/dp/B00TEST",
+        "itemInfo": {"title": {"displayValue": "Mirrorless Camera"}},
+        "offersV2": {
+            "listings": [{
+                "price": {
+                    "money": {"amount": 1299.0, "currency": "USD"},
+                    "savingBasis": {"money": {"amount": 1499.0, "currency": "USD"}},
+                },
+                "merchantInfo": {"name": "Camera Store"},
+                "availability": {"type": "Now"},
             }]
         },
     })
@@ -71,3 +82,56 @@ def test_amazon_offer_normalization():
     assert offer.list_price == 1499.0
     assert offer.effective_price == 1299.0
     assert offer.currency == "USD"
+    assert offer.seller_name == "Camera Store"
+
+
+@pytest.mark.asyncio
+async def test_amazon_creators_api_oauth_and_search(monkeypatch):
+    monkeypatch.setattr(settings, "amazon_credential_id", "credential-id")
+    monkeypatch.setattr(settings, "amazon_credential_secret", "credential-secret")
+    monkeypatch.setattr(settings, "amazon_credential_version", "3.1")
+    monkeypatch.setattr(settings, "amazon_marketplace", "www.amazon.com")
+    monkeypatch.setattr(settings, "amazon_partner_tag", "camera-20")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if request.url.path == "/auth/o2/token":
+            assert body["scope"] == "creatorsapi::default"
+            return httpx.Response(200, json={"access_token": "token", "expires_in": 3600})
+
+        assert request.url.path == "/catalog/v1/searchItems"
+        assert request.headers["authorization"] == "Bearer token"
+        assert request.headers["x-marketplace"] == "www.amazon.com"
+        assert body["partnerTag"] == "camera-20"
+        assert "offersV2.listings.price" in body["resources"]
+        return httpx.Response(
+            200,
+            headers={"x-amzn-requestid": "request-123"},
+            json={
+                "searchResult": {
+                    "items": [{
+                        "asin": "B00TEST",
+                        "itemInfo": {"title": {"displayValue": "Mirrorless Camera"}},
+                        "offersV2": {
+                            "listings": [{
+                                "price": {"money": {"amount": 1299.0, "currency": "USD"}}
+                            }]
+                        },
+                    }]
+                }
+            },
+        )
+
+    real_async_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        amazon_module.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_async_client(transport=transport, **kwargs),
+    )
+
+    result = await AmazonProductProvider().search(ProviderSearchRequest(keyword="camera", page_size=5))
+
+    assert result.request_id == "request-123"
+    assert len(result.offers) == 1
+    assert result.offers[0].effective_price == 1299.0

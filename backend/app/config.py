@@ -59,12 +59,12 @@ class Settings(BaseSettings):
     ebay_client_secret: str | None = None
     ebay_marketplace_id: str = "EBAY_US"
 
-    amazon_paapi_host: str = "webservices.amazon.com"
-    amazon_paapi_region: str = "us-east-1"
-    amazon_access_key: str | None = None
-    amazon_secret_key: str | None = None
+    amazon_creators_api_url: str = "https://creatorsapi.amazon"
+    amazon_credential_id: str | None = None
+    amazon_credential_secret: str | None = None
+    amazon_credential_version: str = "3.1"
+    amazon_marketplace: str = "www.amazon.com"
     amazon_partner_tag: str | None = None
-    amazon_partner_type: str = "Associates"
 
     integration_timeout_seconds: float = 30.0
     integration_offer_ttl_hours: int = 12

@@ -101,28 +101,28 @@ PDD_GOODS_SEARCH_METHOD=pdd.ddk.goods.search
 EBAY_MARKETPLACE_ID=EBAY_US
 ```
 
-### Amazon Product API
+### Amazon Creators API
 
 需要字段：
 
-- `AMAZON_ACCESS_KEY`
-- `AMAZON_SECRET_KEY`
+- `AMAZON_CREDENTIAL_ID`
+- `AMAZON_CREDENTIAL_SECRET`
+- `AMAZON_CREDENTIAL_VERSION`
 - `AMAZON_PARTNER_TAG`
 
-建议搜索/入口关键词：
+申请入口与限制：
 
-- Amazon Associates
-- Amazon Product Advertising API
-- Amazon Creators API
-- SearchItems
-- Partner Tag
+- 进入 Amazon Associates Central 的 Creators API 页面创建应用和凭据。
+- 账号必须先通过 Amazon Associates 审核。
+- 通过 Creators API 使用商品搜索能力还要求近 30 天至少 10 笔合格销售。
+- 旧 PA-API 已于 2026-05-15 停用，本项目不再接受旧 Access Key/Secret Key。
 
 本项目默认配置：
 
 ```env
-AMAZON_PAAPI_HOST=webservices.amazon.com
-AMAZON_PAAPI_REGION=us-east-1
-AMAZON_PARTNER_TYPE=Associates
+AMAZON_CREATORS_API_URL=https://creatorsapi.amazon
+AMAZON_CREDENTIAL_VERSION=3.1
+AMAZON_MARKETPLACE=www.amazon.com
 ```
 
 ## 本地配置
@@ -152,8 +152,10 @@ EBAY_CLIENT_ID=
 EBAY_CLIENT_SECRET=
 EBAY_MARKETPLACE_ID=EBAY_US
 
-AMAZON_ACCESS_KEY=
-AMAZON_SECRET_KEY=
+AMAZON_CREDENTIAL_ID=
+AMAZON_CREDENTIAL_SECRET=
+AMAZON_CREDENTIAL_VERSION=3.1
+AMAZON_MARKETPLACE=www.amazon.com
 AMAZON_PARTNER_TAG=
 ```
 

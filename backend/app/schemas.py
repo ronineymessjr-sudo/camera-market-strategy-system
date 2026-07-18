@@ -355,6 +355,10 @@ class ProviderStatusOut(BaseModel):
     display_name: str
     configured: bool
     mode: str
+    credential_mode: str
+    secret_storage: str
+    required_env: list[str]
+    setup_guide: str
 
 
 class IntegrationSearchRequest(BaseModel):

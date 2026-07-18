@@ -18,7 +18,8 @@ const nav = [
   ['Reports', '/reports', '07'],
   ['Strategy Lab', '/strategies', '08'],
   ['Source Atlas', '/sources', '09'],
-  ['Settings', '/settings', '10'],
+  ['Connect APIs', '/connectors', '10'],
+  ['Settings', '/settings', '11'],
 ]
 
 const mobileNav = [

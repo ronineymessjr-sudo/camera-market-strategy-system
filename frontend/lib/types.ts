@@ -171,6 +171,10 @@ export type ProviderStatus = {
   display_name: string
   configured: boolean
   mode: string
+  credential_mode: 'bring_your_own'
+  secret_storage: 'private_backend_environment'
+  required_env: string[]
+  setup_guide: string
 }
 
 export type SourceHealth = {

@@ -21,6 +21,12 @@ def providers():
     return provider_statuses()
 
 
+@router.get("/catalog", response_model=list[schemas.ProviderStatusOut])
+def connector_catalog():
+    """Machine-readable BYOK connector entry; never returns credential values."""
+    return provider_statuses()
+
+
 @router.post("/{provider}/sync", response_model=schemas.IntegrationSyncResponse, dependencies=[Depends(require_operator)])
 async def provider_sync(
     provider: str,

@@ -41,7 +41,7 @@ test('health reports beta runtime and feedback binding', async () => {
   assert.deepEqual(await response.json(), {
     ok: true,
     service: 'camera-market-public-beta',
-    version: '0.16-feedback',
+    version: '0.17-byok',
     feedback_store: true,
     app_configured: false,
   })
@@ -51,12 +51,16 @@ test('root serves English and Chinese versions without mojibake', async () => {
   const english = await worker.fetch(new Request('https://example.test/?lang=en'))
   const englishHtml = await english.text()
   assert.match(englishHtml, /See the real price/)
+  assert.match(englishHtml, /Bring your own marketplace access/)
+  assert.match(englishHtml, /Connect your data/)
   assert.match(englishHtml, /Send feedback/)
   assert.doesNotMatch(englishHtml, /锟|褰|杩/)
 
   const chinese = await worker.fetch(new Request('https://example.test/?lang=zh'))
   const chineseHtml = await chinese.text()
   assert.match(chineseHtml, /看见真实价格/)
+  assert.match(chineseHtml, /每个人接入自己的平台账号/)
+  assert.match(chineseHtml, /接入你自己的数据/)
   assert.match(chineseHtml, /提交反馈/)
   assert.match(chineseHtml, /lang="zh-CN"/)
 })
@@ -87,6 +91,19 @@ test('feedback submission validates and stores anonymous content', async () => {
 test('feedback status exposes counts but not messages', async () => {
   const response = await worker.fetch(new Request('https://example.test/api/feedback/status'), { FEEDBACK_DB: feedbackDb() })
   assert.deepEqual(await response.json(), { ok: true, pending: 3, latest: '2026-07-18 10:00:00' })
+})
+
+test('connector catalog is BYOK metadata and never accepts credential values', async () => {
+  const response = await worker.fetch(new Request('https://example.test/api/connectors'))
+  assert.equal(response.status, 200)
+  const body = await response.json()
+
+  assert.equal(body.credential_mode, 'bring_your_own')
+  assert.equal(body.accepts_credentials, false)
+  assert.deepEqual(body.connectors.map((item) => item.provider), ['jd', 'taobao', 'pdd', 'ebay', 'amazon'])
+  assert.ok(body.connectors.every((item) => item.secret_storage === 'private_backend_environment'))
+  assert.ok(body.connectors.every((item) => item.required_env.length >= 2))
+  assert.ok(body.connectors.every((item) => !('credentials' in item)))
 })
 
 test('discovery files and security headers are correct', async () => {

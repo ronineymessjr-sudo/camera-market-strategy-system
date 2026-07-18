@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 import { MetricCard, SectionCard, StatusPill } from '@/components/dashboard-ui'
 import { api } from '@/lib/api'
 import type { FlowRun, ProviderStatus } from '@/lib/types'
@@ -59,10 +61,11 @@ export default async function SettingsPage() {
       </SectionCard>
     </div>}
     {status && <SectionCard title="Marketplace provider checklist" className="settings-providers">
+      <div className="connector-callout"><div><strong>Bring your own provider credentials</strong><span>Every operator connects their own platform accounts. Keys stay in that operator&apos;s private backend and are never submitted to this website.</span></div><Link className="btn-primary" href="/connectors">Open connector setup</Link></div>
       <div className="provider-checklist">{status.providers.map((provider) => <div key={provider.provider}>
         <span>{provider.display_name}</span>
         <StatusPill tone={provider.configured ? 'green' : 'amber'}>{provider.configured ? 'CONFIGURED' : 'MISSING KEY'}</StatusPill>
-        <small>{provider.mode}</small>
+        <small>{provider.required_env.join(' · ')}</small>
       </div>)}</div>
     </SectionCard>}
     <div className="operator-disclaimer"><strong>Decision boundary</strong><span>Visible and unverified prices are clues only. Only fresh checkout evidence can trigger a signal, and the system never places an order.</span></div>

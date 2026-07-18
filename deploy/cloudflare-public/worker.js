@@ -1,4 +1,18 @@
 const GITHUB_URL = 'https://github.com/ronineymessjr-sudo/camera-market-strategy-system'
+const SETUP_GUIDE_URL = `${GITHUB_URL}/blob/main/docs/API_KEY_APPLICATION_GUIDE.md`
+
+const CONNECTORS = [
+  { provider: 'jd', display_name: 'JD Union', required_env: ['JD_APP_KEY', 'JD_APP_SECRET', 'JD_UNION_ID'] },
+  { provider: 'taobao', display_name: 'Taobao Alliance', required_env: ['TAOBAO_APP_KEY', 'TAOBAO_APP_SECRET', 'TAOBAO_ADZONE_ID'] },
+  { provider: 'pdd', display_name: 'PDD Duoduo Jinbao', required_env: ['PDD_CLIENT_ID', 'PDD_CLIENT_SECRET', 'PDD_PID'] },
+  { provider: 'ebay', display_name: 'eBay Browse API', required_env: ['EBAY_CLIENT_ID', 'EBAY_CLIENT_SECRET'] },
+  { provider: 'amazon', display_name: 'Amazon Creators API', required_env: ['AMAZON_CREDENTIAL_ID', 'AMAZON_CREDENTIAL_SECRET', 'AMAZON_PARTNER_TAG'] },
+].map((connector) => ({
+  ...connector,
+  credential_mode: 'bring_your_own',
+  secret_storage: 'private_backend_environment',
+  setup_guide: SETUP_GUIDE_URL,
+}))
 
 const SECURITY_HEADERS = {
   'x-content-type-options': 'nosniff',
@@ -26,6 +40,7 @@ const COPY = {
     brand: 'Camera Market',
     brandSub: 'VERIFIED PRICE INTELLIGENCE',
     navSource: 'Source code',
+    navConnect: 'Connect APIs',
     navLaunch: 'Open command center',
     navPreview: 'Private command center',
     eyebrow: 'REAL PRICE · VERIFIED EVIDENCE · HUMAN DECISION',
@@ -33,6 +48,12 @@ const COPY = {
     sub: 'A camera-market research system that separates visible price clues from checkout-verified evidence. It never buys automatically.',
     primary: 'Open command center',
     secondary: 'View source',
+    connectCta: 'Connect your data',
+    connectTitle: 'Bring your own marketplace access',
+    connectBody: 'Every operator connects credentials issued to their own platform account. This public site never asks for, receives, or stores those keys.',
+    connectStorage: 'Store the listed variables only in your private backend environment, restart it, then check the connector catalog for configuration status.',
+    connectGuide: 'Open setup guide',
+    connectApi: 'Connector catalog API',
     gateTitle: 'Evidence gate',
     gateBody: 'Only a fresh VERIFIED_CHECKOUT record can trigger an actionable strategy signal.',
     clueTitle: 'Visible price clue',
@@ -58,6 +79,7 @@ const COPY = {
     brand: '相机市场情报',
     brandSub: '可核验价格智能',
     navSource: '源代码',
+    navConnect: '接入 API',
     navLaunch: '打开指挥中心',
     navPreview: '私有指挥中心',
     eyebrow: '真实价格 · 可核验证据 · 人工决策',
@@ -65,6 +87,12 @@ const COPY = {
     sub: '一套把网页可见价格线索与结算核验证据严格分开的相机市场研究系统。系统不会自动下单。',
     primary: '打开指挥中心',
     secondary: '查看源代码',
+    connectCta: '接入你自己的数据',
+    connectTitle: '每个人接入自己的平台账号',
+    connectBody: '每位使用者使用自己申请的平台凭据。公开网站不会要求、接收或保存任何密钥。',
+    connectStorage: '只需把下列变量保存在自己的私有后端环境中，重启后端，再通过统一目录查看配置状态。',
+    connectGuide: '打开接入指南',
+    connectApi: '连接器目录 API',
     gateTitle: '证据闸门',
     gateBody: '只有新鲜的 VERIFIED_CHECKOUT 记录才能触发可执行策略信号。',
     clueTitle: '可见价格线索',
@@ -98,6 +126,15 @@ export default {
       return feedbackStatus(env)
     }
 
+    if (url.pathname === '/api/connectors' && method === 'GET') {
+      return jsonResponse({
+        ok: true,
+        credential_mode: 'bring_your_own',
+        accepts_credentials: false,
+        connectors: CONNECTORS,
+      })
+    }
+
     if (!['GET', 'HEAD'].includes(method)) {
       return jsonResponse({ ok: false, error: 'method_not_allowed' }, 405, { allow: 'GET, HEAD, POST' })
     }
@@ -106,7 +143,7 @@ export default {
       return headSafe(method, jsonResponse({
         ok: true,
         service: 'camera-market-public-beta',
-        version: '0.16-feedback',
+        version: '0.17-byok',
         feedback_store: Boolean(env.FEEDBACK_DB),
         app_configured: /^https:\/\//.test(env.APP_URL || ''),
       }))
@@ -121,7 +158,7 @@ export default {
     }
 
     if (url.pathname === '/llms.txt') {
-      return headSafe(method, textResponse(`# Camera Market Strategy System\n\nA bilingual public beta for verified camera-market price intelligence. Visible prices are clues only. A strategy can trigger only from fresh VERIFIED_CHECKOUT evidence. The system never purchases automatically.\n\nSource: ${GITHUB_URL}\n`, 'text/plain; charset=utf-8'))
+      return headSafe(method, textResponse(`# Camera Market Strategy System\n\nA bilingual public beta for verified camera-market price intelligence. Each operator brings credentials from their own marketplace accounts; the public site never collects keys. Visible prices are clues only. A strategy can trigger only from fresh VERIFIED_CHECKOUT evidence. The system never purchases automatically.\n\nConnector catalog: ${url.origin}/api/connectors\nSource: ${GITHUB_URL}\n`, 'text/plain; charset=utf-8'))
     }
 
     if (url.pathname !== '/' && url.pathname !== '/index.html') {
@@ -217,6 +254,7 @@ function renderPage(origin, appUrl, locale) {
   const launchHref = appConfigured ? appUrl : GITHUB_URL
   const headline = copy.headline.split('\n').map(escapeHtml).join('<br>')
   const categories = copy.categories.map(([value, label]) => `<option value="${value}">${escapeHtml(label)}</option>`).join('')
+  const connectorCards = CONNECTORS.map((connector) => `<article><div><b>${escapeHtml(connector.display_name)}</b><span>BYOK</span></div><p>${connector.required_env.map(escapeHtml).join(' · ')}</p></article>`).join('')
   const alternateLocale = locale === 'zh' ? 'en' : 'zh'
   const alternateLabel = locale === 'zh' ? 'EN' : '中文'
 
@@ -229,16 +267,17 @@ function renderPage(origin, appUrl, locale) {
   <meta property="og:title" content="${escapeHtml(copy.title)}"><meta property="og:description" content="${escapeHtml(copy.description)}"><meta property="og:type" content="website"><meta property="og:url" content="${origin}/">
   <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Camera Market Intelligence', applicationCategory: 'BusinessApplication', operatingSystem: 'Web' }).replaceAll('<', '\\u003c')}</script>
   <style>
-    *{box-sizing:border-box}html{background:#05070a;color:#f7f7f2;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{margin:0;min-height:100vh;background:radial-gradient(circle at 72% 18%,rgba(255,176,72,.16),transparent 27%),radial-gradient(circle at 14% 72%,rgba(94,198,255,.1),transparent 28%),#05070a}.shell{width:min(1180px,calc(100% - 40px));margin:auto}.nav{height:84px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff1a}.brand{display:flex;gap:12px;align-items:center;color:inherit;text-decoration:none}.mark{width:38px;height:38px;border:1px solid #ffffff38;border-radius:50%;display:grid;place-items:center;font-weight:800;letter-spacing:-.08em}.brand strong,.brand small{display:block}.brand small{font-size:10px;color:#a9adb5;letter-spacing:.16em;margin-top:3px}.nav-actions{display:flex;align-items:center;gap:10px}.nav-actions a{color:#d5d7db;text-decoration:none;font-size:13px;padding:10px 14px}.nav-actions .launch{border:1px solid #f6a744;color:#fff;border-radius:999px}.lang{border:0;background:#ffffff0d;border-radius:999px}.hero{padding:98px 0 64px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:70px;align-items:center}.eyebrow{font-size:11px;color:#f6a744;letter-spacing:.18em;font-weight:700}.hero h1{font-size:clamp(48px,7vw,90px);line-height:.98;letter-spacing:-.065em;margin:20px 0 26px;max-width:820px}.sub{font-size:19px;line-height:1.65;color:#b9bec7;max-width:700px}.actions{display:flex;gap:12px;margin-top:34px}.btn{display:inline-flex;padding:13px 18px;border-radius:10px;border:1px solid #ffffff26;color:#fff;text-decoration:none;font-weight:700}.btn.primary{background:#f6a744;color:#171008;border-color:#f6a744}.lens{aspect-ratio:1;border-radius:50%;border:1px solid #ffffff21;display:grid;place-items:center;box-shadow:0 0 100px #f6a74418}.lens:before{content:"";width:58%;aspect-ratio:1;border-radius:50%;border:1px solid #f6a74480;box-shadow:inset 0 0 70px #5ec6ff24,0 0 50px #f6a74438}.principles{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#ffffff14;border:1px solid #ffffff14}.principles article{background:#090c11;padding:30px}.principles b{display:block;font-size:17px;margin-bottom:10px}.principles p{margin:0;color:#9da3ad;line-height:1.55;font-size:14px}.feedback{margin:64px 0 96px;display:grid;grid-template-columns:.85fr 1.15fr;gap:70px;padding:52px;border:1px solid #ffffff18;background:#0a0d12}.feedback h2{font-size:clamp(32px,4vw,52px);letter-spacing:-.04em;margin:0 0 16px}.feedback-copy p{color:#aeb4be;line-height:1.65}.feedback form{display:grid;gap:14px}.feedback label{font-size:12px;font-weight:700;color:#d7d9dd}.feedback select,.feedback textarea{width:100%;margin-top:7px;border:1px solid #ffffff25;background:#05070a;color:#f7f7f2;padding:13px;border-radius:8px;font:inherit}.feedback textarea{min-height:150px;resize:vertical}.feedback button{justify-self:start;border:0;border-radius:8px;background:#f6a744;color:#171008;padding:13px 19px;font-weight:800;cursor:pointer}.feedback button:disabled{opacity:.65;cursor:wait}.privacy,.status{font-size:12px;color:#888f9b;margin:0}.status{min-height:18px;color:#7fd8a2}.trap{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;overflow:hidden!important}.footer{border-top:1px solid #ffffff17;padding:26px 0 44px;color:#777e89;font-size:12px;display:flex;justify-content:space-between}
-    @media(max-width:800px){.shell{width:min(100% - 24px,680px)}.nav{height:auto;padding:18px 0;align-items:flex-start}.brand small,.nav-source{display:none}.nav-actions{gap:2px}.nav-actions a{padding:9px}.hero{grid-template-columns:1fr;padding:70px 0 44px;gap:38px}.hero h1{font-size:clamp(44px,15vw,68px)}.lens{width:min(72vw,330px);margin:auto}.principles{grid-template-columns:1fr}.feedback{grid-template-columns:1fr;gap:28px;padding:28px;margin-top:44px}.footer{display:block;line-height:1.8}}
+    *{box-sizing:border-box}html{background:#05070a;color:#f7f7f2;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{margin:0;min-height:100vh;background:radial-gradient(circle at 72% 18%,rgba(255,176,72,.16),transparent 27%),radial-gradient(circle at 14% 72%,rgba(94,198,255,.1),transparent 28%),#05070a}.shell{width:min(1180px,calc(100% - 40px));margin:auto}.nav{height:84px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff1a}.brand{display:flex;gap:12px;align-items:center;color:inherit;text-decoration:none}.mark{width:38px;height:38px;border:1px solid #ffffff38;border-radius:50%;display:grid;place-items:center;font-weight:800;letter-spacing:-.08em}.brand strong,.brand small{display:block}.brand small{font-size:10px;color:#a9adb5;letter-spacing:.16em;margin-top:3px}.nav-actions{display:flex;align-items:center;gap:10px}.nav-actions a{color:#d5d7db;text-decoration:none;font-size:13px;padding:10px 14px}.nav-actions .launch{border:1px solid #f6a744;color:#fff;border-radius:999px}.lang{border:0;background:#ffffff0d;border-radius:999px}.hero{padding:98px 0 64px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:70px;align-items:center}.eyebrow{font-size:11px;color:#f6a744;letter-spacing:.18em;font-weight:700}.hero h1{font-size:clamp(48px,7vw,90px);line-height:.98;letter-spacing:-.065em;margin:20px 0 26px;max-width:820px}.sub{font-size:19px;line-height:1.65;color:#b9bec7;max-width:700px}.actions{display:flex;gap:12px;margin-top:34px}.btn{display:inline-flex;padding:13px 18px;border-radius:10px;border:1px solid #ffffff26;color:#fff;text-decoration:none;font-weight:700}.btn.primary{background:#f6a744;color:#171008;border-color:#f6a744}.lens{aspect-ratio:1;border-radius:50%;border:1px solid #ffffff21;display:grid;place-items:center;box-shadow:0 0 100px #f6a74418}.lens:before{content:"";width:58%;aspect-ratio:1;border-radius:50%;border:1px solid #f6a74480;box-shadow:inset 0 0 70px #5ec6ff24,0 0 50px #f6a74438}.principles{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#ffffff14;border:1px solid #ffffff14}.principles article{background:#090c11;padding:30px}.principles b{display:block;font-size:17px;margin-bottom:10px}.principles p{margin:0;color:#9da3ad;line-height:1.55;font-size:14px}.connect{margin:64px 0;padding:52px;border:1px solid #ffffff18;background:#0a0d12}.connect-head{display:grid;grid-template-columns:.9fr 1.1fr;gap:70px}.connect h2{font-size:clamp(32px,4vw,52px);letter-spacing:-.04em;margin:0}.connect-copy p{margin:0 0 12px;color:#aeb4be;line-height:1.65}.connector-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin-top:34px;background:#05070a}.connector-list article{min-width:0;background:#070a0e;padding:18px}.connector-list article:last-child{grid-column:1/-1}.connector-list article>div{display:flex;align-items:center;justify-content:space-between;gap:10px}.connector-list span{font-size:10px;color:#f6a744}.connector-list p{margin:9px 0 0;color:#858c97;font-size:11px;line-height:1.6;overflow-wrap:anywhere}.connect-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}.feedback{margin:64px 0 96px;display:grid;grid-template-columns:.85fr 1.15fr;gap:70px;padding:52px;border:1px solid #ffffff18;background:#0a0d12}.feedback h2{font-size:clamp(32px,4vw,52px);letter-spacing:-.04em;margin:0 0 16px}.feedback-copy p{color:#aeb4be;line-height:1.65}.feedback form{display:grid;gap:14px}.feedback label{font-size:12px;font-weight:700;color:#d7d9dd}.feedback select,.feedback textarea{width:100%;margin-top:7px;border:1px solid #ffffff25;background:#05070a;color:#f7f7f2;padding:13px;border-radius:8px;font:inherit}.feedback textarea{min-height:150px;resize:vertical}.feedback button{justify-self:start;border:0;border-radius:8px;background:#f6a744;color:#171008;padding:13px 19px;font-weight:800;cursor:pointer}.feedback button:disabled{opacity:.65;cursor:wait}.privacy,.status{font-size:12px;color:#888f9b;margin:0}.status{min-height:18px;color:#7fd8a2}.trap{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;overflow:hidden!important}.footer{border-top:1px solid #ffffff17;padding:26px 0 44px;color:#777e89;font-size:12px;display:flex;justify-content:space-between}
+    @media(max-width:800px){.shell{width:min(100% - 24px,680px)}.nav{height:auto;padding:18px 0;align-items:flex-start}.brand small,.nav-source{display:none}.nav-actions{gap:2px}.nav-actions a{padding:9px}.hero{grid-template-columns:1fr;padding:70px 0 44px;gap:38px}.hero h1{font-size:clamp(44px,15vw,68px)}.lens{width:min(72vw,330px);margin:auto}.principles,.connector-list{grid-template-columns:1fr}.connect,.feedback{padding:28px;margin-top:44px}.connect-head,.feedback{grid-template-columns:1fr;gap:28px}.footer{display:block;line-height:1.8}}
     @media(prefers-reduced-motion:no-preference){.lens{animation:breathe 7s ease-in-out infinite}@keyframes breathe{50%{transform:scale(1.025);box-shadow:0 0 140px #f6a74426}}}
   </style>
 </head>
 <body><div class="shell">
-  <nav class="nav"><a class="brand" href="/?lang=${locale}"><span class="mark">CM</span><span><strong>${escapeHtml(copy.brand)}</strong><small>${escapeHtml(copy.brandSub)}</small></span></a><div class="nav-actions"><a class="nav-source" href="${GITHUB_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.navSource)}</a><a class="lang" href="/?lang=${alternateLocale}" hreflang="${alternateLocale}">${alternateLabel}</a><a class="launch" href="${launchHref}">${escapeHtml(appConfigured ? copy.navLaunch : copy.navPreview)}</a></div></nav>
+  <nav class="nav"><a class="brand" href="/?lang=${locale}"><span class="mark">CM</span><span><strong>${escapeHtml(copy.brand)}</strong><small>${escapeHtml(copy.brandSub)}</small></span></a><div class="nav-actions"><a class="nav-source" href="${GITHUB_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.navSource)}</a><a class="lang" href="/?lang=${alternateLocale}" hreflang="${alternateLocale}">${alternateLabel}</a><a class="launch" href="#connect">${escapeHtml(copy.navConnect)}</a></div></nav>
   <main>
-    <section class="hero"><div><div class="eyebrow">${escapeHtml(copy.eyebrow)}</div><h1>${headline}</h1><p class="sub">${escapeHtml(copy.sub)}</p><div class="actions"><a class="btn primary" href="${launchHref}">${escapeHtml(appConfigured ? copy.primary : copy.secondary)}</a><a class="btn" href="#feedback">${escapeHtml(copy.feedbackTitle)}</a></div></div><div class="lens" aria-hidden="true"></div></section>
+    <section class="hero"><div><div class="eyebrow">${escapeHtml(copy.eyebrow)}</div><h1>${headline}</h1><p class="sub">${escapeHtml(copy.sub)}</p><div class="actions"><a class="btn primary" href="#connect">${escapeHtml(copy.connectCta)}</a><a class="btn" href="#feedback">${escapeHtml(copy.feedbackTitle)}</a></div></div><div class="lens" aria-hidden="true"></div></section>
     <section class="principles"><article><b>${escapeHtml(copy.gateTitle)}</b><p>${escapeHtml(copy.gateBody)}</p></article><article><b>${escapeHtml(copy.clueTitle)}</b><p>${escapeHtml(copy.clueBody)}</p></article><article><b>${escapeHtml(copy.humanTitle)}</b><p>${escapeHtml(copy.humanBody)}</p></article></section>
+    <section class="connect" id="connect"><div class="connect-head"><h2>${escapeHtml(copy.connectTitle)}</h2><div class="connect-copy"><p>${escapeHtml(copy.connectBody)}</p><p>${escapeHtml(copy.connectStorage)}</p></div></div><div class="connector-list">${connectorCards}</div><div class="connect-actions"><a class="btn primary" href="${SETUP_GUIDE_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.connectGuide)}</a><a class="btn" href="/api/connectors">${escapeHtml(copy.connectApi)}</a>${appConfigured ? `<a class="btn" href="${escapeHtml(launchHref)}">${escapeHtml(copy.navLaunch)}</a>` : ''}</div></section>
     <section class="feedback" id="feedback"><div class="feedback-copy"><h2>${escapeHtml(copy.feedbackTitle)}</h2><p>${escapeHtml(copy.feedbackBody)}</p></div><form id="feedback-form"><label>${escapeHtml(copy.categoryLabel)}<select name="category">${categories}</select></label><label>${escapeHtml(copy.messageLabel)}<textarea name="message" minlength="10" maxlength="2000" required placeholder="${escapeHtml(copy.placeholder)}"></textarea></label><label class="trap" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label><p class="privacy">${escapeHtml(copy.privacy)}</p><button type="submit">${escapeHtml(copy.send)}</button><p class="status" role="status" aria-live="polite"></p></form></section>
   </main><footer class="footer"><span>Camera Market Strategy System · Public beta</span><span>VISIBLE PRICE ≠ VERIFIED_CHECKOUT</span></footer>
 </div>

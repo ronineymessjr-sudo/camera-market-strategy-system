@@ -1,18 +1,28 @@
-# 官方电商 API 密钥申请与本地配置指南
+# 用户自带凭据（BYOK）与平台连接器指南
 
 更新时间：2026-06-29
 
 ## 重要边界
 
-这些密钥必须由项目使用者自己申请：
+系统不使用一套公共平台账号，也不要求站点维护者替所有人申请密钥。每位使用者使用自己的开发者或联盟账号申请并连接：
 
 - 京东联盟：需要你的京东联盟/开放平台账号、应用、联盟 ID。
 - 淘宝联盟：需要你的淘宝开放平台/淘宝联盟账号、应用、推广位。
 - 多多进宝：需要你的拼多多开放平台/多多进宝账号、应用、推广位 PID。
 - eBay Browse API：需要 eBay Developer 应用的 Client ID 和 Client Secret。
-- Amazon Product API：需要 Amazon Associates/PA-API 或 Creators API 对应的 Access Key、Secret Key、Partner Tag。
+- Amazon Creators API：需要 Amazon Associates 对应的 Credential ID、Credential Secret、Partner Tag。
 
-不要把密钥发给前端，不要写入 Git，不要写进文档正文。只放在 `backend/.env`。
+不要把密钥发给公开网站或反馈表单，不要写入 Git，不要写进文档正文。只放在使用者自己的 `backend/.env` 或私有生产环境变量中。
+
+## 统一连接器入口
+
+- 公开目录：`GET https://camera-market-intelligence.photomagic.workers.dev/api/connectors`
+- 私有后端目录：`GET /api/integrations/catalog`
+- 私有配置页面：`/connectors`
+
+这些入口只返回平台名称、所需环境变量名和是否已配置，不接受也不返回任何密钥值。统一流程是：使用者自己申请 → 写入自己的私有后端环境 → 重启 → 在目录中确认状态 → 运行小规模同步。
+
+如需增加新的平台适配器，实现 `backend/app/integrations/base.py` 中的 `MarketplaceProvider`，在 `backend/app/integrations/registry.py` 注册适配器及所需变量名，并为归一化价格和连接器目录添加测试。平台 API 返回的价格仍必须标记为 `VISIBLE_PRICE`。
 
 ## 申请入口与关键词
 

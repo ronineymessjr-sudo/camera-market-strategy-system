@@ -41,7 +41,7 @@ test('health reports beta runtime and feedback binding', async () => {
   assert.deepEqual(await response.json(), {
     ok: true,
     service: 'camera-market-public-beta',
-    version: '0.17-byok',
+    version: '0.18-motion',
     feedback_store: true,
     app_configured: false,
   })
@@ -63,6 +63,15 @@ test('root serves English and Chinese versions without mojibake', async () => {
   assert.match(chineseHtml, /接入你自己的数据/)
   assert.match(chineseHtml, /提交反馈/)
   assert.match(chineseHtml, /lang="zh-CN"/)
+})
+
+test('public page includes accessible progressive motion', async () => {
+  const response = await worker.fetch(new Request('https://example.test/?lang=en'))
+  const html = await response.text()
+  assert.match(html, /headline-line/)
+  assert.match(html, /IntersectionObserver/)
+  assert.match(html, /prefers-reduced-motion:reduce/)
+  assert.match(html, /motion-ready/)
 })
 
 test('feedback submission validates and stores anonymous content', async () => {

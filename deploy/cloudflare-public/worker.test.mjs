@@ -41,37 +41,89 @@ test('health reports beta runtime and feedback binding', async () => {
   assert.deepEqual(await response.json(), {
     ok: true,
     service: 'camera-market-public-beta',
-    version: '0.18-motion',
+    version: '0.19-workbench',
     feedback_store: true,
+    workspace_store: true,
     app_configured: false,
   })
 })
 
-test('root serves English and Chinese versions without mojibake', async () => {
+test('root serves the bilingual cream operator workbench', async () => {
   const english = await worker.fetch(new Request('https://example.test/?lang=en'))
   const englishHtml = await english.text()
-  assert.match(englishHtml, /See the real price/)
-  assert.match(englishHtml, /Bring your own marketplace access/)
-  assert.match(englishHtml, /Connect your data/)
-  assert.match(englishHtml, /Send feedback/)
-  assert.doesNotMatch(englishHtml, /锟|褰|杩/)
+  assert.match(englishHtml, /Put products and prices/)
+  assert.match(englishHtml, /Products &amp; links/)
+  assert.match(englishHtml, /Import CSV or JSON/)
+  assert.match(englishHtml, /--paper:#f4efe5/)
 
   const chinese = await worker.fetch(new Request('https://example.test/?lang=zh'))
   const chineseHtml = await chinese.text()
-  assert.match(chineseHtml, /看见真实价格/)
-  assert.match(chineseHtml, /每个人接入自己的平台账号/)
-  assert.match(chineseHtml, /接入你自己的数据/)
-  assert.match(chineseHtml, /提交反馈/)
+  assert.match(chineseHtml, /把商品与价格/)
+  assert.match(chineseHtml, /商品与链接/)
+  assert.match(chineseHtml, /导入并保存/)
   assert.match(chineseHtml, /lang="zh-CN"/)
 })
 
-test('public page includes accessible progressive motion', async () => {
+test('workbench includes progressive motion and the cloud import flow', async () => {
   const response = await worker.fetch(new Request('https://example.test/?lang=en'))
   const html = await response.text()
-  assert.match(html, /headline-line/)
-  assert.match(html, /IntersectionObserver/)
   assert.match(html, /prefers-reduced-motion:reduce/)
-  assert.match(html, /motion-ready/)
+  assert.match(html, /camera-market-workspace-id/)
+  assert.match(html, /\/api\/workspace\/import/)
+  assert.match(html, /parseCsv/)
+  const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)?.[1]
+  assert.ok(script)
+  assert.doesNotThrow(() => new vm.Script(script))
+})
+
+test('about keeps the public beta and feedback page available', async () => {
+  const response = await worker.fetch(new Request('https://example.test/about?lang=en'))
+  const html = await response.text()
+  assert.match(html, /See the real price/)
+  assert.match(html, /Send feedback/)
+})
+
+function workspaceDb() {
+  const rows = [{ id: 3, name: 'Sony A7 IV', brand: 'Sony', platform: 'jd', source_url: 'https://example.com/a7', current_price: 12999, trigger_price: 12000, strong_buy_price: 11000, notes: '', created_at: '2026-07-18', updated_at: '2026-07-18' }]
+  return {
+    prepare(sql) {
+      return {
+        bind(...values) {
+          return {
+            async all() {
+              assert.match(sql, /FROM workspace_watchlist/)
+              assert.equal(values[0], '0123456789abcdef0123456789abcdef')
+              return { results: rows }
+            },
+            async run() {
+              if (/INSERT INTO workspace_watchlist/.test(sql)) {
+                assert.equal(values[0], '0123456789abcdef0123456789abcdef')
+                assert.equal(values[1], 'Fujifilm X100VI')
+                return { success: true, meta: { last_row_id: 9 } }
+              }
+              assert.match(sql, /DELETE FROM workspace_watchlist/)
+              return { success: true }
+            },
+          }
+        },
+      }
+    },
+  }
+}
+
+test('workspace data can be listed and recorded with an isolated browser key', async () => {
+  const headers = { 'x-workspace-id': '0123456789abcdef0123456789abcdef' }
+  const listed = await worker.fetch(new Request('https://example.test/api/workspace/items', { headers }), { FEEDBACK_DB: workspaceDb() })
+  assert.equal(listed.status, 200)
+  assert.equal((await listed.json()).items[0].name, 'Sony A7 IV')
+
+  const created = await worker.fetch(new Request('https://example.test/api/workspace/items', {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Fujifilm X100VI', platform: 'jd', current_price: 11999 }),
+  }), { FEEDBACK_DB: workspaceDb() })
+  assert.equal(created.status, 201)
+  assert.deepEqual(await created.json(), { ok: true, id: 9 })
 })
 
 test('feedback submission validates and stores anonymous content', async () => {

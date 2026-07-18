@@ -118,6 +118,22 @@ export default {
     const url = new URL(request.url)
     const method = request.method.toUpperCase()
 
+    if (url.pathname === '/api/workspace/items' && method === 'GET') {
+      return listWorkspaceItems(request, env)
+    }
+
+    if (url.pathname === '/api/workspace/items' && method === 'POST') {
+      return createWorkspaceItem(request, env)
+    }
+
+    if (url.pathname === '/api/workspace/import' && method === 'POST') {
+      return importWorkspaceItems(request, env)
+    }
+
+    if (url.pathname.startsWith('/api/workspace/items/') && method === 'DELETE') {
+      return deleteWorkspaceItem(request, env, url.pathname.split('/').pop())
+    }
+
     if (url.pathname === '/api/feedback' && method === 'POST') {
       return submitFeedback(request, env)
     }
@@ -143,8 +159,9 @@ export default {
       return headSafe(method, jsonResponse({
         ok: true,
         service: 'camera-market-public-beta',
-        version: '0.18-motion',
+        version: '0.19-workbench',
         feedback_store: Boolean(env.FEEDBACK_DB),
+        workspace_store: Boolean(env.FEEDBACK_DB),
         app_configured: /^https:\/\//.test(env.APP_URL || ''),
       }))
     }
@@ -161,16 +178,121 @@ export default {
       return headSafe(method, textResponse(`# Camera Market Strategy System\n\nA bilingual public beta for verified camera-market price intelligence. Each operator brings credentials from their own marketplace accounts; the public site never collects keys. Visible prices are clues only. A strategy can trigger only from fresh VERIFIED_CHECKOUT evidence. The system never purchases automatically.\n\nConnector catalog: ${url.origin}/api/connectors\nSource: ${GITHUB_URL}\n`, 'text/plain; charset=utf-8'))
     }
 
-    if (url.pathname !== '/' && url.pathname !== '/index.html') {
+    if (!['/', '/index.html', '/about'].includes(url.pathname)) {
       return headSafe(method, jsonResponse({ ok: false, error: 'not_found', path: url.pathname }, 404))
     }
 
     const locale = selectLocale(url, request.headers.get('accept-language'))
-    const response = new Response(renderPage(url.origin, env.APP_URL || '', locale), {
+    const html = url.pathname === '/about'
+      ? renderPage(url.origin, env.APP_URL || '', locale)
+      : renderWorkbench(url.origin, locale)
+    const response = new Response(html, {
       headers: pageHeaders(),
     })
     return headSafe(method, response)
   },
+}
+
+function workspaceKey(request) {
+  const value = request.headers.get('x-workspace-id') || ''
+  return /^[a-f0-9]{32}$/.test(value) ? value : null
+}
+
+function workspaceStore(env) {
+  return env.FEEDBACK_DB || null
+}
+
+async function parseJson(request) {
+  try {
+    return await request.json()
+  } catch {
+    return null
+  }
+}
+
+function normalizeWorkspaceItem(value) {
+  if (!value || typeof value !== 'object') return null
+  const text = (field, max) => typeof value[field] === 'string' ? value[field].trim().slice(0, max) : ''
+  const number = (field) => {
+    if (value[field] === '' || value[field] == null) return null
+    const parsed = Number(value[field])
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+  }
+  const name = text('name', 160)
+  if (!name) return null
+  const sourceUrl = text('source_url', 1000)
+  if (sourceUrl && !/^https?:\/\//i.test(sourceUrl)) return null
+  return {
+    name,
+    brand: text('brand', 80),
+    platform: text('platform', 40),
+    source_url: sourceUrl,
+    current_price: number('current_price'),
+    trigger_price: number('trigger_price'),
+    strong_buy_price: number('strong_buy_price'),
+    notes: text('notes', 500),
+  }
+}
+
+async function listWorkspaceItems(request, env) {
+  const key = workspaceKey(request)
+  const db = workspaceStore(env)
+  if (!key) return jsonResponse({ ok: false, error: 'invalid_workspace' }, 401)
+  if (!db) return jsonResponse({ ok: false, error: 'workspace_store_unavailable' }, 503)
+  const result = await db.prepare(
+    'SELECT id, name, brand, platform, source_url, current_price, trigger_price, strong_buy_price, notes, created_at, updated_at FROM workspace_watchlist WHERE workspace_key = ? ORDER BY updated_at DESC, id DESC',
+  ).bind(key).all()
+  return jsonResponse({ ok: true, items: result.results || [] })
+}
+
+async function createWorkspaceItem(request, env) {
+  const key = workspaceKey(request)
+  const db = workspaceStore(env)
+  if (!key) return jsonResponse({ ok: false, error: 'invalid_workspace' }, 401)
+  if (!db) return jsonResponse({ ok: false, error: 'workspace_store_unavailable' }, 503)
+  const item = normalizeWorkspaceItem(await parseJson(request))
+  if (!item) return jsonResponse({ ok: false, error: 'invalid_item' }, 422)
+  const result = await insertWorkspaceItem(db, key, item)
+  return jsonResponse({ ok: true, id: result.meta?.last_row_id ?? null }, 201)
+}
+
+async function importWorkspaceItems(request, env) {
+  const key = workspaceKey(request)
+  const db = workspaceStore(env)
+  if (!key) return jsonResponse({ ok: false, error: 'invalid_workspace' }, 401)
+  if (!db) return jsonResponse({ ok: false, error: 'workspace_store_unavailable' }, 503)
+  const body = await parseJson(request)
+  const values = Array.isArray(body?.items) ? body.items : []
+  if (!values.length || values.length > 200) return jsonResponse({ ok: false, error: 'invalid_import_size', max: 200 }, 422)
+  const items = values.map(normalizeWorkspaceItem)
+  if (items.some((item) => !item)) return jsonResponse({ ok: false, error: 'invalid_item' }, 422)
+  const statements = items.map((item) => workspaceInsert(db).bind(key, ...workspaceValues(item)))
+  const results = await db.batch(statements)
+  if (results.some((result) => !result.success)) return jsonResponse({ ok: false, error: 'import_failed' }, 500)
+  return jsonResponse({ ok: true, imported: results.length }, 201)
+}
+
+async function deleteWorkspaceItem(request, env, rawId) {
+  const key = workspaceKey(request)
+  const db = workspaceStore(env)
+  const id = Number(rawId)
+  if (!key) return jsonResponse({ ok: false, error: 'invalid_workspace' }, 401)
+  if (!db) return jsonResponse({ ok: false, error: 'workspace_store_unavailable' }, 503)
+  if (!Number.isInteger(id) || id < 1) return jsonResponse({ ok: false, error: 'invalid_item_id' }, 422)
+  await db.prepare('DELETE FROM workspace_watchlist WHERE id = ? AND workspace_key = ?').bind(id, key).run()
+  return jsonResponse({ ok: true })
+}
+
+function workspaceInsert(db) {
+  return db.prepare('INSERT INTO workspace_watchlist (workspace_key, name, brand, platform, source_url, current_price, trigger_price, strong_buy_price, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+}
+
+function workspaceValues(item) {
+  return [item.name, item.brand, item.platform, item.source_url, item.current_price, item.trigger_price, item.strong_buy_price, item.notes]
+}
+
+async function insertWorkspaceItem(db, key, item) {
+  return workspaceInsert(db).bind(key, ...workspaceValues(item)).run()
 }
 
 async function submitFeedback(request, env) {
@@ -246,6 +368,42 @@ function pageHeaders() {
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char])
+}
+
+function renderWorkbench(origin, locale) {
+  const zh = locale === 'zh'
+  const copy = zh ? {
+    title: '影价追踪｜相机市场操作台', brand: '影价追踪', subbrand: 'VERIFIED PRICE INTELLIGENCE',
+    overview: '总览', products: '商品与链接', strategy: '策略', reports: '日报', connectors: '接入 API', about: '项目介绍',
+    search: '搜索已记录的商品、品牌或平台…', workspace: '浏览器专属数据空间', heroKicker: '真实数据操作台', heroTitle: '把商品与价格\n真正记录进去',
+    heroBody: '这是昨天那套浅米白色操作界面。你可以手动添加，也可以导入 CSV 或 JSON；数据会保存到独立的云端工作区。',
+    add: '添加商品', import: '导入数据', empty: '还没有商品。添加一条，或导入现有清单。', saved: '云端已保存', loading: '正在读取数据…',
+    tracked: '已记录商品', priced: '已有价格', triggered: '达到触发价', sources: '数据平台', desk: '商品与价格工作台', deskSub: '这里才是日常录入、导入和管理数据的主入口。',
+    name: '商品名称', brandLabel: '品牌', platform: '平台', url: '商品链接', current: '当前价格', trigger: '触发价格', strong: '强买价格', notes: '备注', actions: '操作', remove: '删除',
+    save: '保存到云端', cancel: '取消', manualTitle: '手动录入商品', importTitle: '批量导入 CSV 或 JSON', importHelp: 'CSV 表头：name,brand,platform,source_url,current_price,trigger_price,strong_buy_price,notes；最多 200 条。', importNow: '导入并保存',
+    successAdd: '商品已记录。', successImport: '数据已导入。', failed: '操作失败，请稍后重试。', price: '价格', noPrice: '待补充', language: 'EN', langCode: 'en',
+  } : {
+    title: 'Camera Market | Operator Workbench', brand: 'Camera Market', subbrand: 'VERIFIED PRICE INTELLIGENCE',
+    overview: 'Overview', products: 'Products & links', strategy: 'Strategies', reports: 'Reports', connectors: 'Connect APIs', about: 'About',
+    search: 'Search saved products, brands, or platforms…', workspace: 'Browser-specific cloud workspace', heroKicker: 'REAL DATA WORKBENCH', heroTitle: 'Put products and prices\ninto the system',
+    heroBody: 'The cream operator interface is back. Add items manually or import CSV or JSON; records are stored in an isolated cloud workspace for this browser.',
+    add: 'Add product', import: 'Import data', empty: 'No products yet. Add one or import your existing list.', saved: 'Saved in cloud', loading: 'Loading data…',
+    tracked: 'Tracked products', priced: 'With prices', triggered: 'At trigger price', sources: 'Platforms', desk: 'Product and price workbench', deskSub: 'The main place to enter, import, and manage working data.',
+    name: 'Product name', brandLabel: 'Brand', platform: 'Platform', url: 'Product URL', current: 'Current price', trigger: 'Trigger price', strong: 'Strong-buy price', notes: 'Notes', actions: 'Actions', remove: 'Delete',
+    save: 'Save to cloud', cancel: 'Cancel', manualTitle: 'Add a product', importTitle: 'Import CSV or JSON', importHelp: 'CSV headers: name,brand,platform,source_url,current_price,trigger_price,strong_buy_price,notes. Up to 200 items.', importNow: 'Import and save',
+    successAdd: 'Product saved.', successImport: 'Data imported.', failed: 'The operation failed. Please try again.', price: 'Price', noPrice: 'Missing', language: '中文', langCode: 'zh',
+  }
+  const c = Object.fromEntries(Object.entries(copy).map(([key, value]) => [key, escapeHtml(value)]))
+  const heroTitle = c.heroTitle.split('\n').join('<br>')
+  return `<!doctype html><html lang="${zh ? 'zh-CN' : 'en'}"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${c.title}</title>
+<meta name="description" content="${c.heroBody}"><link rel="canonical" href="${origin}/"><meta name="theme-color" content="#f4efe5">
+<style>
+:root{color-scheme:light;--paper:#f4efe5;--paper-2:#fffaf1;--ink:#15120e;--muted:#746b5f;--line:#cfc5b5;--blue:#245cff;--shadow:#584b3822;font-family:Georgia,"Noto Serif SC","Songti SC",serif}*{box-sizing:border-box}html{background:var(--paper);color:var(--ink)}body{margin:0;min-height:100vh;background:radial-gradient(circle at 24% 4%,#fff 0,transparent 25%),linear-gradient(135deg,#f7f3ea,#dcd5c8 52%,#f8f5ee)}button,input,textarea{font:inherit}.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}.side{position:sticky;top:0;height:100vh;padding:24px 14px;background:#f7f3ea;border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:11px;padding:0 8px 26px;color:inherit;text-decoration:none}.mark{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#111;color:#fff;font-weight:800}.brand strong,.brand small{display:block}.brand small{margin-top:3px;color:#766d60;font-size:8px;letter-spacing:.14em}.nav{display:grid;gap:5px}.nav a{display:flex;gap:12px;align-items:center;padding:11px 12px;border-radius:8px;color:#5b5145;text-decoration:none;font-size:12px;font-weight:700}.nav a span{width:20px;color:#928575;font-size:9px}.nav a.active{background:#111;color:#fff;box-shadow:0 10px 28px #0002}.nav a.active span{color:#d8c9ae}.side-status{margin-top:auto;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fffaf2}.side-status b,.side-status small{display:block}.side-status small{margin-top:5px;color:var(--muted);font-size:9px;line-height:1.45}.main{min-width:0}.top{position:sticky;top:0;z-index:10;height:64px;padding:0 24px;border-bottom:1px solid var(--line);background:#f7f3eae8;backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:space-between;gap:16px}.search{width:min(560px,55vw);border:1px solid var(--line);background:#fffaf2;border-radius:999px;padding:11px 15px;color:var(--muted)}.top-actions{display:flex;align-items:center;gap:9px}.top-actions a,.top-actions span{padding:9px 12px;border:1px solid var(--line);border-radius:999px;color:#3f382f;text-decoration:none;font-size:10px;background:#fffaf2}.content{max-width:1380px;margin:auto;padding:24px}.hero{position:relative;overflow:hidden;min-height:430px;padding:38px;border:1px solid #bfb4a3;border-radius:18px;background:linear-gradient(128deg,#fbf7ed 0,#efe6d7 58%,#171717 59%,#050505 100%);box-shadow:0 32px 80px var(--shadow);display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:32px;align-items:center}.hero-copy{position:relative;z-index:1}.kicker{color:#776a59;font-size:9px;letter-spacing:.19em;text-transform:uppercase}.hero h1{max-width:760px;margin:14px 0 16px;font-size:clamp(36px,4vw,62px);line-height:.95;letter-spacing:-.045em}.hero p{max-width:660px;margin:0;color:#5b5145;font-size:15px;line-height:1.7}.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}.btn{min-height:42px;padding:0 16px;border:1px solid #17130f;border-radius:999px;background:#fffaf1;color:#17130f;font-weight:800;font-size:11px;cursor:pointer}.btn.primary{border-radius:9px;border-color:var(--blue);background:var(--blue);color:#fff;box-shadow:0 12px 28px #245cff35}.focus{position:relative;z-index:1;min-height:300px;padding:22px;border:1px solid #ffffff26;border-radius:26px;background:#090909e8;color:#f7f2e9;box-shadow:0 28px 70px #0008;display:flex;flex-direction:column;justify-content:space-between}.focus small{color:#a69d90;font-size:9px;letter-spacing:.12em}.focus strong{display:block;margin-top:10px;font-size:28px;line-height:1.2}.focus-price{padding-top:20px;border-top:1px solid #ffffff24;display:flex;justify-content:space-between;gap:12px}.focus-price b{font-size:32px}.focus-price span{color:#bdb4a7;font-size:11px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.metric{padding:18px;border:1px solid var(--line);border-radius:12px;background:#fffaf2;box-shadow:0 16px 40px var(--shadow)}.metric span,.metric small{display:block;color:var(--muted);font-size:10px}.metric strong{display:block;margin:8px 0 5px;font-size:30px}.panel{padding:22px;border:1px solid var(--line);border-radius:14px;background:#fffaf2;box-shadow:0 18px 48px var(--shadow)}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.panel-head h2{margin:0;font-size:23px}.panel-head p{margin:6px 0 0;color:var(--muted);font-size:12px}.panel-actions{display:flex;gap:8px}.table-wrap{overflow:auto;border:1px solid #d8cfc1;border-radius:11px}.data{width:100%;border-collapse:collapse;min-width:920px}.data th{padding:12px;text-align:left;background:#eee5d7;color:#655c51;font-size:10px}.data td{padding:13px 12px;border-top:1px solid #e1d8cb;font-size:12px}.data tr:hover td{background:#f7efe3}.product b,.product small{display:block}.product small{margin-top:4px;color:var(--muted);font-size:9px}.price{font-weight:800}.delete{border:0;background:transparent;color:#8b4a42;cursor:pointer;font-size:10px}.empty{padding:48px;text-align:center;color:var(--muted)}dialog{width:min(680px,calc(100% - 24px));border:1px solid var(--line);border-radius:16px;background:#fffaf2;color:var(--ink);box-shadow:0 30px 100px #0005}dialog::backdrop{background:#1118;backdrop-filter:blur(4px)}dialog h2{margin:0 0 18px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.form-grid label{display:grid;gap:6px;color:#5d5449;font-size:11px}.form-grid label.full{grid-column:1/-1}.form-grid input,.form-grid textarea,.import-box{width:100%;border:1px solid var(--line);border-radius:9px;background:#fffdf8;color:#17130f;padding:11px}.form-grid textarea,.import-box{min-height:110px;resize:vertical}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.help,.status{color:var(--muted);font-size:11px;line-height:1.55}.status{min-height:18px;margin:12px 0 0;color:#2f6b4d}.loading{opacity:.65}.reveal{animation:rise .55s cubic-bezier(.2,.7,.2,1) both}.metrics .metric:nth-child(2){animation-delay:.05s}.metrics .metric:nth-child(3){animation-delay:.1s}.metrics .metric:nth-child(4){animation-delay:.15s}@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}@media(max-width:900px){.app{grid-template-columns:76px 1fr}.brand div,.nav a:not(.active){font-size:0}.nav a{justify-content:center}.side-status{display:none}.hero{grid-template-columns:1fr;min-height:auto}.focus{min-height:220px}.metrics{grid-template-columns:1fr 1fr}}@media(max-width:650px){.app{display:block}.side{display:none}.top{height:auto;padding:10px;align-items:stretch;flex-direction:column}.search{width:100%}.top-actions{justify-content:space-between}.content{padding:10px 10px 80px}.hero{padding:20px 14px;background:linear-gradient(180deg,#fbf7ed 0,#efe6d7 59%,#111 60%,#050505 100%)}.hero h1{font-size:38px}.hero p{font-size:13px}.focus{min-height:190px}.metrics{grid-template-columns:1fr 1fr;gap:8px}.metric{padding:13px}.metric strong{font-size:24px}.panel{padding:14px}.panel-head{display:block}.panel-actions{margin-top:12px}.form-grid{grid-template-columns:1fr}.form-grid label.full{grid-column:auto}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+</style></head><body><div class="app"><aside class="side"><a class="brand" href="/?lang=${locale}"><span class="mark">CM</span><div><strong>${c.brand}</strong><small>${c.subbrand}</small></div></a><nav class="nav"><a class="active" href="#overview"><span>01</span>${c.overview}</a><a href="#workbench"><span>02</span>${c.products}</a><a href="#workbench"><span>03</span>${c.strategy}</a><a href="#workbench"><span>04</span>${c.reports}</a><a href="/api/connectors"><span>05</span>${c.connectors}</a><a href="/about?lang=${locale}"><span>06</span>${c.about}</a></nav><div class="side-status"><b>${c.saved}</b><small>${c.workspace}</small></div></aside><div class="main"><header class="top"><input class="search" id="search" placeholder="${c.search}" aria-label="${c.search}"><div class="top-actions"><span id="cloud-state">${c.loading}</span><a href="/?lang=${c.langCode}">${c.language}</a></div></header><main class="content"><section class="hero reveal" id="overview"><div class="hero-copy"><div class="kicker">${c.heroKicker}</div><h1>${heroTitle}</h1><p>${c.heroBody}</p><div class="hero-actions"><button class="btn primary" id="open-add">${c.add}</button><button class="btn" id="open-import">${c.import}</button></div></div><div class="focus"><div><small>TOP WATCH ITEM</small><strong id="focus-name">${c.empty}</strong></div><div class="focus-price"><div><small>${c.current}</small><b id="focus-price">—</b></div><span id="focus-platform">${c.workspace}</span></div></div></section><section class="metrics"><article class="metric reveal"><span>${c.tracked}</span><strong id="metric-total">0</strong><small>${c.saved}</small></article><article class="metric reveal"><span>${c.priced}</span><strong id="metric-priced">0</strong><small>${c.price}</small></article><article class="metric reveal"><span>${c.triggered}</span><strong id="metric-triggered">0</strong><small>${c.strategy}</small></article><article class="metric reveal"><span>${c.sources}</span><strong id="metric-platforms">0</strong><small>${c.connectors}</small></article></section><section class="panel reveal" id="workbench"><div class="panel-head"><div><h2>${c.desk}</h2><p>${c.deskSub}</p></div><div class="panel-actions"><button class="btn primary" id="open-add-2">${c.add}</button><button class="btn" id="open-import-2">${c.import}</button></div></div><div class="table-wrap"><table class="data"><thead><tr><th>${c.name}</th><th>${c.platform}</th><th>${c.current}</th><th>${c.trigger}</th><th>${c.strong}</th><th>${c.notes}</th><th>${c.actions}</th></tr></thead><tbody id="rows"><tr><td colspan="7" class="empty">${c.loading}</td></tr></tbody></table></div><p class="status" id="page-status" role="status"></p></section></main></div></div>
+<dialog id="add-dialog"><form id="add-form"><h2>${c.manualTitle}</h2><div class="form-grid"><label>${c.name}<input name="name" maxlength="160" required></label><label>${c.brandLabel}<input name="brand" maxlength="80"></label><label>${c.platform}<input name="platform" maxlength="40"></label><label>${c.url}<input name="source_url" type="url" maxlength="1000"></label><label>${c.current}<input name="current_price" type="number" min="0" step="0.01"></label><label>${c.trigger}<input name="trigger_price" type="number" min="0" step="0.01"></label><label>${c.strong}<input name="strong_buy_price" type="number" min="0" step="0.01"></label><label class="full">${c.notes}<textarea name="notes" maxlength="500"></textarea></label></div><div class="dialog-actions"><button class="btn" type="button" data-close>${c.cancel}</button><button class="btn primary" type="submit">${c.save}</button></div><p class="status" role="status"></p></form></dialog>
+<dialog id="import-dialog"><form id="import-form"><h2>${c.importTitle}</h2><p class="help">${c.importHelp}</p><textarea class="import-box" name="payload" required placeholder="name,brand,platform,source_url,current_price,trigger_price,strong_buy_price,notes"></textarea><div class="dialog-actions"><button class="btn" type="button" data-close>${c.cancel}</button><button class="btn primary" type="submit">${c.importNow}</button></div><p class="status" role="status"></p></form></dialog>
+<script>(()=>{const labels=${JSON.stringify({ empty: copy.empty, loading: copy.loading, noPrice: copy.noPrice, remove: copy.remove, saved: copy.saved, failed: copy.failed, successAdd: copy.successAdd, successImport: copy.successImport })};const keyName='camera-market-workspace-id';let key=localStorage.getItem(keyName);if(!/^[a-f0-9]{32}$/.test(key||'')){const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);key=[...bytes].map(value=>value.toString(16).padStart(2,'0')).join('');localStorage.setItem(keyName,key)}let items=[];const rows=document.getElementById('rows'),pageStatus=document.getElementById('page-status'),cloud=document.getElementById('cloud-state'),search=document.getElementById('search');const money=value=>value==null||value===''?'—':new Intl.NumberFormat(undefined,{style:'currency',currency:'CNY',maximumFractionDigits:2}).format(Number(value));const api=async(path,options={})=>{const response=await fetch(path,{...options,headers:{'content-type':'application/json','x-workspace-id':key,...(options.headers||{})}});if(!response.ok)throw new Error(await response.text());return response.json()};function cell(text,className){const td=document.createElement('td');if(className)td.className=className;td.textContent=text;return td}function render(){const query=search.value.trim().toLowerCase(),filtered=items.filter(item=>[item.name,item.brand,item.platform].some(value=>(value||'').toLowerCase().includes(query)));rows.replaceChildren();if(!filtered.length){const tr=document.createElement('tr'),td=cell(items.length?labels.empty:labels.empty,'empty');td.colSpan=7;tr.append(td);rows.append(tr)}else filtered.forEach(item=>{const tr=document.createElement('tr'),product=cell('','product'),name=document.createElement('b'),meta=document.createElement('small');name.textContent=item.name;meta.textContent=[item.brand,item.source_url].filter(Boolean).join(' · ');product.append(name,meta);tr.append(product,cell(item.platform||'—'),cell(money(item.current_price),'price'),cell(money(item.trigger_price)),cell(money(item.strong_buy_price)),cell(item.notes||'—'));const action=document.createElement('td'),button=document.createElement('button');button.className='delete';button.textContent=labels.remove;button.addEventListener('click',()=>removeItem(item.id));action.append(button);tr.append(action);rows.append(tr)});document.getElementById('metric-total').textContent=items.length;document.getElementById('metric-priced').textContent=items.filter(item=>item.current_price!=null).length;document.getElementById('metric-triggered').textContent=items.filter(item=>item.current_price!=null&&item.trigger_price!=null&&Number(item.current_price)<=Number(item.trigger_price)).length;document.getElementById('metric-platforms').textContent=new Set(items.map(item=>item.platform).filter(Boolean)).size;const focus=items[0];document.getElementById('focus-name').textContent=focus?.name||labels.empty;document.getElementById('focus-price').textContent=focus?money(focus.current_price):'—';document.getElementById('focus-platform').textContent=focus?.platform||labels.saved}async function load(){try{const data=await api('/api/workspace/items');items=data.items;cloud.textContent=labels.saved;render()}catch{cloud.textContent=labels.failed;rows.innerHTML='<tr><td colspan="7" class="empty">'+labels.failed+'</td></tr>'}}async function removeItem(id){try{await api('/api/workspace/items/'+id,{method:'DELETE'});items=items.filter(item=>item.id!==id);render()}catch{pageStatus.textContent=labels.failed}}function open(id){document.getElementById(id).showModal()}document.getElementById('open-add').onclick=()=>open('add-dialog');document.getElementById('open-add-2').onclick=()=>open('add-dialog');document.getElementById('open-import').onclick=()=>open('import-dialog');document.getElementById('open-import-2').onclick=()=>open('import-dialog');document.querySelectorAll('[data-close]').forEach(button=>button.onclick=()=>button.closest('dialog').close());search.addEventListener('input',render);document.getElementById('add-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,status=form.querySelector('.status'),data=Object.fromEntries(new FormData(form));try{await api('/api/workspace/items',{method:'POST',body:JSON.stringify(data)});status.textContent=labels.successAdd;form.reset();await load();setTimeout(()=>form.closest('dialog').close(),350)}catch{status.textContent=labels.failed}});function parseCsv(text){const lines=text.trim().split(/\\r?\\n/),read=line=>{const result=[];let value='',quoted=false;for(let index=0;index<=line.length;index++){const char=line[index];if(char==='"'&&quoted&&line[index+1]==='"'){value+='"';index++}else if(char==='"'){quoted=!quoted}else if((char===','||index===line.length)&&!quoted){result.push(value.trim());value=''}else value+=char||''}return result};const headers=read(lines.shift()||'');return lines.filter(Boolean).map(line=>Object.fromEntries(read(line).map((value,index)=>[headers[index],value])))}document.getElementById('import-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,status=form.querySelector('.status'),text=new FormData(form).get('payload').trim();try{const parsed=text.startsWith('[')?JSON.parse(text):parseCsv(text);await api('/api/workspace/import',{method:'POST',body:JSON.stringify({items:parsed})});status.textContent=labels.successImport;form.reset();await load();setTimeout(()=>form.closest('dialog').close(),350)}catch{status.textContent=labels.failed}});load()})()</script></body></html>`
 }
 
 function renderPage(origin, appUrl, locale) {

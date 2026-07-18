@@ -1,47 +1,43 @@
-# Product Design QA — Public Motion Polish
+# Product Design QA — Cream Operator Workbench
 
 ## Scope
 
-- Target: public Camera Market Intelligence landing page
-- State: Chinese desktop landing view and Chinese mobile landing view
-- Reference: current deployed design, captured locally from `HEAD`
-- Change: motion and interaction polish only; layout, palette, content, and core flows preserved
+- Target: restore the cream operator interface as the public root.
+- Intended outcome: let each browser enter, import, persist, search, and remove its own watchlist data.
+- Reference visual truth: `.runlogs/screenshots/redesign-home-desktop-final.png`.
+- Implementation: local Cloudflare Worker at the Chinese workbench root.
 
 ## Comparison evidence
 
-- Reference: `.runlogs/product-design-motion-source-1280x844.png`
-- Implementation: `.runlogs/product-design-motion-implementation-1280x844.png`
-- Same-state comparison: `.runlogs/product-design-motion-comparison.png`
-- Mobile implementation: `.runlogs/product-design-motion-mobile-390x844.png`
+- Reference: `.runlogs/screenshots/redesign-home-desktop-final.png`.
+- Desktop implementation: `.runlogs/workbench-cream-desktop.png`.
+- Same-input comparison: `.runlogs/workbench-design-comparison.png`.
+- Mobile implementation: `.runlogs/workbench-cream-mobile.png`.
+- Desktop viewport: 1280 × 844, populated with three products.
+- Mobile viewport: 390 × 844, same populated workspace.
 
-## Checks
+## Fidelity review
 
-- Desktop 1280 × 844: hero composition, type scale, spacing, CTA placement, lens geometry, and principle cards match the reference.
-- Mobile 390 × 844: no horizontal overflow (`scrollWidth === clientWidth`); hero, CTA row, and lens remain intact.
-- Motion: intro sequence loads, pointer parallax updates lens variables, and scroll reveal advances from 3 above-fold items to 9 items after scrolling.
-- Accessibility: `prefers-reduced-motion` disables animations and restores all content immediately.
-- Runtime: no browser console errors.
+- Fonts and typography: restored the editorial serif hierarchy, compact navigation labels, large opening headline, and small uppercase metadata from the reference. The Chinese headline is intentionally smaller than the old English headline so it remains fully visible.
+- Spacing and layout rhythm: preserved the fixed left rail, compact top bar, bordered hero, four summary cards, and cream work surface. Desktop and mobile have no horizontal page overflow.
+- Colors and tokens: restored warm paper, cream cards, black focus region, restrained beige borders, and the original blue primary action.
+- Image and asset fidelity: the previous decorative lens composition is replaced by a real-data focus card. This is an intentional product constraint: the public root now prioritizes the active saved item rather than a decorative mock.
+- Copy and content: the landing copy now names the actual workflow—manual entry, CSV/JSON import, cloud persistence, and browser-isolated workspaces.
 
-## Findings
+## Interaction evidence
 
-- P0: none
-- P1: none
-- P2: none
-- P3: none
+- Manual entry: added Sony A7 IV and confirmed all price fields rendered in the table and summary.
+- Persistence: reloaded the page and confirmed the record remained available.
+- CSV import: imported Fujifilm X100VI and DJI Pocket 3 in one submission; total updated from 1 to 3.
+- Search, dialog open/close, delete action, English switch, About route, and connector catalog remain reachable.
+- Mobile: `clientWidth = 375`, `scrollWidth = 375`; primary actions remain visible.
+- Runtime: inline workbench script parses successfully; ten Worker tests pass.
 
-## Prior V0.6 QA snapshot
+## Findings and iteration history
 
-- Date: 2026-06-29
-- Visual targets: `docs/ui-reference/overview-dark.png` and `docs/ui-reference/overview-alt.png`
-- Implementation evidence: `docs/design-qa/home-desktop-final.png` and `docs/design-qa/products-mobile.png`
-- The merged UI preserved the deep navy product direction, dashboard hierarchy, truthful API state, motion layer, and reduced-motion behavior.
-- The prior pass fixed capture timing for metric-card reveals and added a horizontal-scroll hint for mobile tables.
-- Public hosting credentials and domain configuration were still pending at that checkpoint.
-
-## Iteration history
-
-1. Initial comparison showed the principle cards waiting for the first scroll event.
-2. Updated the reveal trigger so near-viewport cards enter during initial load while below-fold sections remain scroll-driven.
-3. Re-captured the same viewport and confirmed visual parity.
+1. P0: initial workbench script did not run because the CSV newline regular expression was escaped incorrectly inside the HTML template. Fixed the generated script escaping and added a syntax-parsing regression assertion.
+2. P1: the first desktop headline was oversized relative to the reference and crowded the focus region. Reduced the type scale and re-captured the populated state.
+3. P2: none remaining.
+4. P3: the public workbench intentionally implements overview and data management first; strategy and report navigation currently return to the workbench section.
 
 final result: passed

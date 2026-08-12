@@ -98,6 +98,13 @@ jobs:
           DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/camera_market
           PYTHONPATH: backend
         run: python -c "from app.database import Base, engine; import app.models; Base.metadata.create_all(engine)"
+      - name: Provision Supabase API roles in ephemeral PostgreSQL
+        run: |
+          psql postgresql://postgres:postgres@127.0.0.1:5432/camera_market -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin;
+          SQL
       - name: Apply V0.15 migration and verify trust invariants
         env:
           DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/camera_market

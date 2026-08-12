@@ -151,6 +151,22 @@ SQLITE_TABLES: dict[str, str] = {
             finished_at DATETIME
         )
     """,
+    "purchase_confirmations": """
+        CREATE TABLE purchase_confirmations (
+            id INTEGER PRIMARY KEY,
+            product_id INTEGER NOT NULL,
+            price_record_id INTEGER NOT NULL,
+            product_name TEXT NOT NULL,
+            source_url TEXT,
+            checkout_price NUMERIC(12, 2) NOT NULL,
+            currency VARCHAR(12) NOT NULL DEFAULT 'CNY',
+            status VARCHAR(40) NOT NULL DEFAULT 'CONFIRMED',
+            note TEXT,
+            confirmed_by VARCHAR(200) NOT NULL,
+            confirmed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME
+        )
+    """,
 }
 
 

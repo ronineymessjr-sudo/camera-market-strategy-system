@@ -4,7 +4,7 @@ V0.15 is a single-operator camera-market price intelligence platform. It collect
 
 ## Current Status
 
-- Active implementation branch: `codex/v0.14-production-readiness`
+- Active implementation branch: `main`
 - Backend: FastAPI, SQLAlchemy, PostgreSQL/Supabase
 - Frontend: Next.js 16
 - Cloud runtime: immutable GHCR images on a Linux Docker host
@@ -40,6 +40,9 @@ Historical `VERIFIED_CHECKOUT` rows without server-recorded evidence are downgra
 - `GET /api/system/health`
 - `GET /api/system/ready`
 - `POST /api/evidence/upload`
+- `GET /api/purchases`
+- `POST /api/purchases`
+- `PATCH /api/purchases/{purchase_id}`
 - `GET /api/reviews`
 - `POST /api/jobs/daily-flow`
 - `POST /api/jobs/crawls`
@@ -63,10 +66,18 @@ node --test deploy\cloudflare-public\worker.test.mjs
 
 Latest verified baseline:
 
-- Backend: 43 tests passed
-- Frontend: production build passed with Next.js 16.2.9
+- Backend: 50 tests passed
+- Frontend: production build passed with Next.js 16.3.0
 - Frontend dependency audit: 0 vulnerabilities
+- Cloudflare Worker: 10 contract tests passed
 - Cloud runtime guard: passed
+
+For the local, loopback-only runtime, `scripts\run-local-agent.ps1` starts the
+backend on port `8100`, starts the production frontend on port `3100`, runs a
+rate-limited crawl, generates the daily report, and executes the local trust
+audit. The Windows task `CameraMarketPriceAgent-2h` runs this script at logon
+and every two hours. This does not replace Cloudflare Access or production
+Supabase authentication.
 
 ## Cloud Deployment
 
@@ -88,6 +99,7 @@ docs/                    Architecture, release, security, and operating document
 
 ## Documentation
 
+- [V0.15 Complete Change Document](docs/V015_COMPLETE_CHANGE_DOCUMENT.md)
 - [V0.15 Production Readiness](docs/V015_PRODUCTION_READINESS.md)
 - [Website Launch TODO](docs/WEBSITE_LAUNCH_TODO.md)
 - [Cloud Cutover Plan](docs/CLOUD_CUTOVER_PLAN.md)

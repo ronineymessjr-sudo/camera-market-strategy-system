@@ -103,6 +103,10 @@ jobs:
           DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/camera_market
           PYTHONPATH: backend
         run: python -m app.migrate supabase/migrations --from 20260711090000_v015_production_readiness.sql --verify
+      - name: Verify purchase migration on isolated legacy schema
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/camera_market
+        run: python scripts/check-purchase-migration.py
 
   worker-tests:
     name: Cloudflare entry tests

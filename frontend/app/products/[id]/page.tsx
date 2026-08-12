@@ -1,4 +1,5 @@
 import { PriceStory } from '@/components/experience-modules'
+import { ConfirmPurchaseForm } from '@/components/confirm-purchase-form'
 import { SectionCard, StatusPill } from '@/components/dashboard-ui'
 import { api } from '@/lib/api'
 import type { Listing, Price, PriceAnalytics, Product, Signal, Strategy } from '@/lib/types'
@@ -82,7 +83,8 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
             <div className="list-row"><span>Currency</span><b>{latestTrusted.currency || 'UNKNOWN'}</b></div>
             <div className="list-row"><span>Valid until</span><b>{latestTrusted.valid_until ? new Date(latestTrusted.valid_until).toLocaleString('en-US', { hour12: false }) : 'No expiry'}</b></div>
           </div>
-        </div> : <div className="empty">No trusted checkout price yet. Strategy action is blocked until checkout evidence is verified.</div>}
+          <ConfirmPurchaseForm price={latestTrusted} />
+          </div> : <div className="empty">No trusted checkout price yet. Strategy action is blocked until checkout evidence is verified.</div>}
       </SectionCard>
 
       <SectionCard title="Latest clue, not executable">

@@ -67,7 +67,8 @@ def verify_trust_invariants() -> None:
             select count(*) from (values
               (to_regclass('public.evidence_uploads')),
               (to_regclass('public.background_jobs')),
-              (to_regclass('public.price_evidence'))
+              (to_regclass('public.price_evidence')),
+              (to_regclass('public.purchase_confirmations'))
             ) as required(table_name)
             where table_name is null
         """).fetchone()[0]

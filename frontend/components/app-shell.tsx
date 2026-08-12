@@ -13,13 +13,14 @@ const nav = [
   ['Products', '/products', '02'],
   ['Opportunities', '/opportunities', '03'],
   ['Verification', '/verification', '04'],
-  ['Notifications', '/notifications', '05'],
-  ['History', '/history', '06'],
-  ['Reports', '/reports', '07'],
-  ['Strategy Lab', '/strategies', '08'],
-  ['Source Atlas', '/sources', '09'],
-  ['Connect APIs', '/connectors', '10'],
-  ['Settings', '/settings', '11'],
+  ['Purchases', '/purchases', '05'],
+  ['Notifications', '/notifications', '06'],
+  ['History', '/history', '07'],
+  ['Reports', '/reports', '08'],
+  ['Strategy Lab', '/strategies', '09'],
+  ['Source Atlas', '/sources', '10'],
+  ['Connect APIs', '/connectors', '11'],
+  ['Settings', '/settings', '12'],
 ]
 
 const mobileNav = [

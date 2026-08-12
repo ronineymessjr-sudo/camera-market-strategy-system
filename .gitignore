@@ -28,6 +28,7 @@ yarn-error.log*
 logs/
 .runlogs/
 .wrangler/
+supabase/.temp/
 *.pid
 *.log
 *.tmp

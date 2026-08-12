@@ -8,7 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DB = ROOT / "backend" / "camera_market.db"
-BASE = "http://127.0.0.1:8000"
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+BASE = f"http://127.0.0.1:{PORT}"
 
 
 def fetch(path: str):
@@ -35,6 +36,26 @@ def main() -> int:
             print(f"{table}: {count}")
         rows = conn.execute("SELECT verification_status, COUNT(*) FROM price_records GROUP BY verification_status").fetchall()
         print("price statuses:", dict(rows))
+        invalid_triggered = conn.execute("""
+            SELECT COUNT(*)
+            FROM signals s
+            LEFT JOIN price_records p ON p.id = s.price_record_id
+            WHERE s.triggered = 1
+              AND (
+                p.id IS NULL
+                OR p.verification_status <> 'VERIFIED_CHECKOUT'
+                OR p.valid_until IS NULL
+                OR datetime(p.valid_until) < datetime('now')
+                OR NOT EXISTS (
+                  SELECT 1 FROM price_evidence e
+                  WHERE e.price_record_id = p.id AND e.trusted_for_strategy = 1
+                )
+              )
+        """).fetchone()[0]
+        print("invalid triggered signals:", invalid_triggered)
+        if invalid_triggered:
+            conn.close()
+            return 1
         conn.close()
     else:
         print(f"SQLite DB not found at {DB}; DATABASE_URL may point elsewhere.")

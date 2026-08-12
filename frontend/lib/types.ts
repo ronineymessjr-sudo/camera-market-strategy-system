@@ -56,6 +56,21 @@ export type Price = {
   captured_at: string
 }
 
+export type PurchaseConfirmation = {
+  id: number
+  product_id: number
+  price_record_id: number
+  product_name: string
+  source_url?: string | null
+  checkout_price: number
+  currency: string
+  status: 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
+  note?: string | null
+  confirmed_by: string
+  confirmed_at: string
+  completed_at?: string | null
+}
+
 export type Signal = {
   id: number
   product_id: number

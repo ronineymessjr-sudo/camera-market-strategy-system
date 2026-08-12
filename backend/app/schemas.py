@@ -179,6 +179,31 @@ class InvalidatePriceRequest(BaseModel):
     note: str = Field(min_length=2, max_length=2000)
 
 
+class PurchaseConfirmationCreate(BaseModel):
+    price_record_id: int
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class PurchaseConfirmationUpdate(BaseModel):
+    status: str = Field(pattern="^(COMPLETED|CANCELLED)$")
+
+
+class PurchaseConfirmationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    product_id: int
+    price_record_id: int
+    product_name: str
+    source_url: str | None
+    checkout_price: float
+    currency: str
+    status: str
+    note: str | None
+    confirmed_by: str
+    confirmed_at: datetime
+    completed_at: datetime | None
+
+
 class StrategyCreate(BaseModel):
     user_name: str = "ronin"
     product_id: int

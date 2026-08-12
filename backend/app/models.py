@@ -313,3 +313,22 @@ class BackgroundJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PurchaseConfirmation(Base):
+    """A manual purchase decision. It never contains checkout or payment data."""
+
+    __tablename__ = "purchase_confirmations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
+    price_record_id: Mapped[int] = mapped_column(ForeignKey("price_records.id"), nullable=False, index=True)
+    product_name: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text)
+    checkout_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(12), nullable=False, default="CNY")
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="CONFIRMED", index=True)
+    note: Mapped[str | None] = mapped_column(Text)
+    confirmed_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

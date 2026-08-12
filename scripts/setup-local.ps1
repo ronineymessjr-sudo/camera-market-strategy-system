@@ -12,6 +12,7 @@ $Python = Join-Path $Backend ".venv\Scripts\python.exe"
 & $Python -m playwright install chromium
 Push-Location $Frontend
 npm install
+npm run build
 Pop-Location
 Push-Location $Backend
 & $Python -X utf8 scripts\migrate_local.py

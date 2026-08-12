@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import SessionLocal, init_db
 from app.middleware import HeavyOperationRateLimitMiddleware, RequestContextMiddleware
-from app.routers import analytics, evidence, frontend, integrations, jobs, notifications, prices, products, quant, reports, reviews, selection, signals, source_health, strategies, system, watchlist
+from app.routers import analytics, evidence, frontend, integrations, jobs, notifications, prices, products, purchases, quant, reports, reviews, selection, signals, source_health, strategies, system, watchlist
 from app.services.signal_service import refresh_all_active_signals
 from app.version import APP_VERSION
 
@@ -43,6 +43,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.include_router(products.router)
 app.include_router(prices.router)
+app.include_router(purchases.router)
 app.include_router(strategies.router)
 app.include_router(signals.router)
 app.include_router(reports.router)

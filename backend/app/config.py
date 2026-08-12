@@ -27,12 +27,12 @@ class Settings(BaseSettings):
     crawler_concurrency: int = 3
     crawler_platform_concurrency: str = "taobao:2,pdd:2,jd:4,generic:6"
     crawler_timeout_ms: int = 45_000
-    crawler_min_interval_minutes: int = 30
+    crawler_min_interval_minutes: int = 120
     crawler_retries: int = 1
     crawler_headless: bool = True
 
     scheduler_enabled: bool = False
-    scheduler_interval_minutes: int = 60
+    scheduler_interval_minutes: int = 120
     job_poll_interval_seconds: float = 2.0
 
     # Official affiliate/open-platform integrations. Secrets stay in environment variables.

@@ -1,6 +1,6 @@
 {
   "name": "camera-market-intelligence",
-  "main": "worker.js",
+  "main": "entry.js",
   "compatibility_date": "2026-06-02",
   "d1_databases": [
     {

@@ -58,3 +58,33 @@ def test_selection_engine_only_flags_fresh_verified_strategy_price():
     candidate = build_selection_candidates(session)[0]
     assert candidate.is_buy_signal is True
     assert candidate.status == "STRATEGY_TRIGGERED_STRONG"
+
+
+def test_unpriced_crawl_does_not_hide_latest_price_clue():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine, expire_on_commit=False)()
+    product = Product(name="Clue Camera", priority=50)
+    session.add(product)
+    session.flush()
+    now = datetime.now(timezone.utc)
+    visible = PriceRecord(
+        product_id=product.id,
+        list_price=4999,
+        currency="CNY",
+        verification_status="VISIBLE_PRICE",
+        captured_at=now - timedelta(hours=1),
+        needs_review=True,
+    )
+    unpriced = PriceRecord(
+        product_id=product.id,
+        verification_status="UNVERIFIED",
+        captured_at=now,
+        needs_review=True,
+    )
+    session.add_all([visible, unpriced])
+    session.commit()
+
+    candidate = build_selection_candidates(session)[0]
+    assert candidate.latest_clue.id == visible.id
+    assert candidate.latest_clue.list_price == 4999

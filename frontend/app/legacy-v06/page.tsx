@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { DailyRunButton } from '@/components/daily-run-button'
 import { MetricCard, PriceChart, SectionCard, Sparkline, StatusPill } from '@/components/dashboard-ui'
 import { api } from '@/lib/api'
-import { ageLabel, bestPrice, confidence, money, percent } from '@/lib/format'
+import { ageLabel, bestPrice, confidence, money, parseApiDate, percent } from '@/lib/format'
 import type { FrontendBootstrap, ProductOverview, SelectionCandidate } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -57,11 +57,11 @@ export default async function Home() {
   const globalCurrency = Object.entries(globalCurrencyCounts).sort((left, right) => right[1] - left[1])[0]?.[0] ?? 'CNY'
   const globalPoints = globalPriceRows
     .filter((price) => (price.currency || 'CNY').toUpperCase() === globalCurrency)
-    .sort((a, b) => new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime())
+    .sort((a, b) => (parseApiDate(a.captured_at)?.getTime() ?? 0) - (parseApiDate(b.captured_at)?.getTime() ?? 0))
     .slice(-60)
     .map((price) => ({
       value: bestPrice(price)!,
-      label: new Date(price.captured_at).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }),
+      label: parseApiDate(price.captured_at)?.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) ?? '',
     }))
   const clues = products
     .filter((row) => row.latest_clue || row.latest_verified)

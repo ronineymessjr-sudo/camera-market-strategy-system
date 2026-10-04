@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -22,6 +22,7 @@ def _latest_clue(db: Session, product_id: int, max_age_hours: int = 72) -> model
             models.PriceRecord.product_id == product_id,
             models.PriceRecord.verification_status.in_(["VISIBLE_PRICE", "UNVERIFIED"]),
             models.PriceRecord.captured_at >= threshold,
+            or_(models.PriceRecord.list_price.isnot(None), models.PriceRecord.promotion_price.isnot(None)),
         )
         .order_by(desc(models.PriceRecord.confidence_score), desc(models.PriceRecord.captured_at), desc(models.PriceRecord.id))
         .first()

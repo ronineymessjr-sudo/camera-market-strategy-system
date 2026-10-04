@@ -14,20 +14,25 @@ import type {
   SourceHealth,
   Strategy,
 } from '@/lib/types'
+import { parseApiDate } from '@/lib/format'
 
-function cash(value?: number | null, fallback = 'No price') {
+function cash(value?: number | null, fallback = '暂无价格', currency = 'CNY') {
   if (typeof value !== 'number' || Number.isNaN(value)) return fallback
-  return `CNY ${Math.round(value).toLocaleString('en-US')}`
+  return `${currency} ${Math.round(value).toLocaleString('zh-CN')}`
 }
 
 function best(price?: Pick<Price, 'checkout_price' | 'promotion_price' | 'list_price'> | null) {
   return price?.checkout_price ?? price?.promotion_price ?? price?.list_price ?? null
 }
 
+function cashPrice(price?: Price | null, fallback = '暂无价格') {
+  return cash(best(price), fallback, price?.currency ?? 'CNY')
+}
+
 function ago(value?: string | null) {
   if (!value) return 'No update'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'No update'
+  const date = parseApiDate(value)
+  if (!date) return 'No update'
   const minutes = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000))
   if (minutes < 60) return `${minutes}m ago`
   const hours = Math.round(minutes / 60)
@@ -44,11 +49,12 @@ function trustLabel(price?: Price | null) {
 }
 
 function candidatePrice(row: SelectionCandidate) {
-  return best(row.latest_verified) ?? best(row.latest_clue)
+  if (!row.strategy || row.status === 'STALE_VERIFIED') return row.latest_clue ?? null
+  return row.latest_verified ?? row.latest_clue ?? null
 }
 
 function productPrice(row: ProductOverview) {
-  return best(row.latest_verified) ?? best(row.latest_clue) ?? best(row.latest_any)
+  return row.latest_fresh_verified ?? row.latest_clue ?? null
 }
 
 function productName(products: Product[], id: number) {
@@ -78,26 +84,26 @@ export function CommandCenter({
   return <section className="experience-band command-center">
     <div className="experience-head">
       <div>
-        <span className="experience-kicker">COMMAND CENTER</span>
-        <h2>Today&apos;s operator desk</h2>
-        <p>Prioritize verified opportunity, review pressure, and the next action in one scan.</p>
+        <span className="experience-kicker">今日决策台</span>
+        <h2>今日运营工作台</h2>
+        <p>在一个视图里处理可信机会、核验压力和下一步动作。</p>
       </div>
-      <Link className="experience-action" href="/opportunities">Open opportunity pool</Link>
+      <Link className="experience-action" href="/opportunities">打开机会池</Link>
     </div>
     <div className="command-grid">
       <article className="command-priority">
         <span className="module-index">01</span>
         <div>
-          <small>Priority target</small>
-          <h3>{focus?.product.name ?? 'No tracked product yet'}</h3>
-          <p>{leader?.status ?? 'Waiting for the next real run'}</p>
+          <small>优先目标</small>
+          <h3>{focus?.product.name ?? '还没有监控商品'}</h3>
+          <p>{leader?.status ?? '等待下一次真实运行'}</p>
         </div>
-        <strong>{focus ? cash(productPrice(focus)) : 'No price'}</strong>
+        <strong>{focus ? cashPrice(productPrice(focus)) : '暂无价格'}</strong>
       </article>
       {[
-        ['Buy signals', buySignals.length, 'Only verified checkout prices can trigger action'],
-        ['Verified products', verified.length, 'Products with executable evidence'],
-        ['Review queue', stats?.needs_review ?? review.length, 'Clues waiting for manual checkout'],
+        ['策略机会', buySignals.length, '只有核验到手价才能触发动作'],
+        ['可信商品', verified.length, '已有可执行证据的商品'],
+        ['待核验队列', stats?.needs_review ?? review.length, '等待人工确认结算页价格'],
       ].map(([label, value, note]) => <article className="command-stat" key={label}>
         <span>{label}</span>
         <strong>{value}</strong>
@@ -111,9 +117,10 @@ export function CommandCenter({
           <b>{row.product.name}</b>
           <small>{row.reasons[0] ?? row.status}</small>
         </div>
-        <strong>{cash(candidatePrice(row))}</strong>
-        <em className={row.is_buy_signal ? 'hot' : 'watch'}>{row.is_buy_signal ? 'ACT' : 'WATCH'}</em>
+        <strong>{cashPrice(candidatePrice(row))}</strong>
+        <em className={row.is_buy_signal ? 'hot' : 'watch'}>{row.is_buy_signal ? '可复核' : '观察'}</em>
       </Link>)}
+      {!candidates.length && <div className="empty">暂无候选机会，先运行一次真实流程。</div>}
     </div>
   </section>
 }
@@ -130,17 +137,17 @@ export function VerificationCockpit({ queue, stats }: { queue: Price[]; stats?: 
   return <section className="experience-band verification-cockpit">
     <div className="experience-head">
       <div>
-        <span className="experience-kicker">VERIFICATION COCKPIT</span>
-        <h2>Turn visible prices into trusted decisions</h2>
-        <p>Review the highest-risk clues first, then promote only confirmed checkout prices.</p>
+        <span className="experience-kicker">证据核验舱</span>
+        <h2>把网页价格变成可信决策</h2>
+        <p>优先处理风险最高的线索，只把已确认的结算价提升为可信事实。</p>
       </div>
-      <Link className="experience-action" href="/verification">Open queue</Link>
+      <Link className="experience-action" href="/verification">打开核验队列</Link>
     </div>
     <div className="cockpit-grid">
       <div className="cockpit-meter">
-        <span>Queue pressure</span>
+        <span>队列压力</span>
         <strong>{stats?.needs_review ?? queue.length}</strong>
-        <small>{stats?.verified_checkout ?? 0} verified checkout records available</small>
+        <small>当前有 {stats?.verified_checkout ?? 0} 条核验到手价记录</small>
       </div>
       <div className="evidence-ladder">
         {evidenceSteps.map(([index, step, note]) => <div key={step}>
@@ -152,7 +159,7 @@ export function VerificationCockpit({ queue, stats }: { queue: Price[]; stats?: 
       <article className="cockpit-focus">
         <span>Current evidence</span>
         <h3>{first?.title ?? (first ? `Product #${first.product_id}` : 'No pending clue')}</h3>
-        <p>{first ? `${first.platform ?? 'Unknown source'} / ${cash(best(first))} / ${ago(first.captured_at)}` : 'Run the real flow to refill the review lane.'}</p>
+        <p>{first ? `${first.platform ?? '未知来源'} / ${cashPrice(first)} / ${ago(first.captured_at)}` : '运行真实流程后，待核验队列会在这里更新。'}</p>
       </article>
     </div>
   </section>
@@ -181,20 +188,20 @@ export function PriceStory({
     return (best(price) ?? Infinity) < (best(winner) ?? Infinity) ? price : winner
   }, null)
   const events = [
-    { label: 'Latest trusted checkout', value: cash(best(latestTrusted)), detail: latestTrusted ? `VERIFIED_CHECKOUT / ${ago(latestTrusted.captured_at)}` : 'No executable price yet' },
-    { label: 'Lowest trusted checkout', value: cash(best(lowTrusted)), detail: lowTrusted ? `${lowTrusted.platform ?? 'Unknown source'} / ${ago(lowTrusted.captured_at)}` : 'No trusted history yet' },
-    { label: 'Latest unverified clue', value: cash(best(latestClue)), detail: latestClue ? `${trustLabel(latestClue)} / not actionable` : 'No pending clue' },
-    { label: 'Strategy target', value: cash(strategy?.trigger_price), detail: strategy?.strategy_name ?? 'No active strategy' },
+    { label: '最新可信到手价', value: cashPrice(latestTrusted), detail: latestTrusted ? `已核验结算价 / ${ago(latestTrusted.captured_at)}` : '暂无可执行价格' },
+    { label: '历史最低可信价', value: cashPrice(lowTrusted), detail: lowTrusted ? `${lowTrusted.platform ?? '未知来源'} / ${ago(lowTrusted.captured_at)}` : '暂无可信历史' },
+    { label: '最新网页线索', value: cashPrice(latestClue), detail: latestClue ? `${trustLabel(latestClue)} / 仅供核验` : '暂无待处理线索' },
+    { label: '策略触发价', value: cash(strategy?.trigger_price, '暂无价格', strategy?.currency ?? 'CNY'), detail: strategy?.strategy_name ?? '暂无启用策略' },
   ]
 
   return <section className="experience-band price-story">
     <div className="experience-head">
       <div>
-        <span className="experience-kicker">PRICE STORY</span>
+        <span className="experience-kicker">价格轨迹</span>
         <h2>{product.name}</h2>
-        <p>A compact timeline for drops, trusted checkpoints, missed windows, and strategy context.</p>
+        <p>集中查看价格变化、可信检查点、错过窗口与策略上下文。</p>
       </div>
-      <span className="experience-chip">{signals?.filter((signal) => signal.triggered).length ?? 0} triggered signals</span>
+      <span className="experience-chip">{signals?.filter((signal) => signal.triggered).length ?? 0} 个策略触发信号</span>
     </div>
     <div className="story-timeline">
       {events.map((event, index) => <article key={event.label}>
@@ -210,7 +217,7 @@ export function PriceStory({
       {usable.slice(0, 12).reverse().map((price) => <i
         key={price.id}
         className={price.verification_status === 'VERIFIED_CHECKOUT' ? 'verified' : 'clue'}
-        title={`${trustLabel(price)} ${cash(best(price))}`}
+        title={`${trustLabel(price)} ${cashPrice(price)}`}
       />)}
     </div>
   </section>
@@ -224,17 +231,17 @@ export function StrategyLab({ strategies, products }: { strategies: Strategy[]; 
   return <section className="experience-band strategy-lab">
     <div className="experience-head">
       <div>
-        <span className="experience-kicker">STRATEGY LAB</span>
-        <h2>Strategy behavior before it becomes a signal</h2>
-        <p>Compare active rules, confidence limits, and how strict each product&apos;s buying logic is.</p>
+        <span className="experience-kicker">策略实验室</span>
+        <h2>信号触发前，先看清策略行为</h2>
+        <p>比较启用规则、可信度边界和每个商品的执行门槛。</p>
       </div>
       <span className="experience-chip">{active.length}/{strategies.length} active</span>
     </div>
     <div className="lab-grid">
       {[
-        ['Active rules', active.length, 'Currently watching'],
-        ['Strong-buy lines', strong.length, 'Configured hard entries'],
-        ['Freshness limit', `${avgAge}h`, 'Average max price age'],
+        ['启用规则', active.length, '当前正在监控'],
+        ['强买入线', strong.length, '已配置硬触发价'],
+        ['新鲜度上限', `${avgAge}h`, '平均允许价格年龄'],
       ].map(([label, value, note]) => <article className="lab-metric" key={label}>
         <span>{label}</span>
         <strong>{value}</strong>
@@ -248,7 +255,7 @@ export function StrategyLab({ strategies, products }: { strategies: Strategy[]; 
           <b>{productName(products, strategy.product_id)}</b>
           <small>{strategy.strategy_name} / {strategy.mode}</small>
         </div>
-        <strong>{cash(strategy.trigger_price, 'No target')}</strong>
+        <strong>{cash(strategy.trigger_price, '暂无目标价', strategy.currency)}</strong>
         <em>{strategy.is_active ? 'LIVE' : 'PAUSED'}</em>
       </article>)}
     </div>
@@ -275,9 +282,9 @@ export function SourceHealthAtlas({
   return <section className="experience-band source-atlas">
     <div className="experience-head">
       <div>
-        <span className="experience-kicker">SOURCE HEALTH ATLAS</span>
-        <h2>Know which sources deserve trust</h2>
-        <p>Connection state, sync freshness, and crawler health sit next to the price evidence layer.</p>
+        <span className="experience-kicker">数据源健康图谱</span>
+        <h2>知道哪些来源值得信任</h2>
+        <p>连接状态、同步新鲜度和抓取健康度，与价格证据层放在一起判断。</p>
       </div>
       <span className="experience-chip">{health}% runtime healthy</span>
     </div>
@@ -289,9 +296,9 @@ export function SourceHealthAtlas({
       </article>)}
     </div>
     <div className="source-footer">
-      <div><span>Latest crawler run</span><b>{latestRun?.status ?? 'No run'}</b><small>{latestRun ? ago(latestRun.finished_at ?? latestRun.started_at) : 'Start a run to populate health'}</small></div>
-      <div><span>API sync logs</span><b>{integrationRuns?.length ?? 0}</b><small>Recent provider import attempts</small></div>
-      <div><span>Price records</span><b>{stats?.total ?? 0}</b><small>{stats?.verified_checkout ?? 0} checkout-verified</small></div>
+      <div><span>最近抓取任务</span><b>{latestRun?.status ?? '尚未运行'}</b><small>{latestRun ? ago(latestRun.finished_at ?? latestRun.started_at) : '运行一次后开始记录健康度'}</small></div>
+      <div><span>API 同步记录</span><b>{integrationRuns?.length ?? 0}</b><small>最近的供应商导入尝试</small></div>
+      <div><span>价格记录</span><b>{stats?.total ?? 0}</b><small>{stats?.verified_checkout ?? 0} 条已核验到手价</small></div>
     </div>
   </section>
 }
@@ -311,31 +318,31 @@ export function OperatorMode({
   return <section className="experience-band operator-mode">
     <div className="experience-head">
       <div>
-        <span className="experience-kicker">OPERATOR MODE</span>
-        <h2>Five-minute self-use pass</h2>
-        <p>A compact mobile-friendly routine: act, verify, ignore, then generate the daily report.</p>
+        <span className="experience-kicker">运营模式</span>
+        <h2>五分钟完成一次自用检查</h2>
+        <p>适合移动端的短流程：行动、核验、忽略，再生成今日报告。</p>
       </div>
       <span className="experience-chip">{stats?.needs_review ?? verify.length} to review</span>
     </div>
     <div className="operator-columns">
       <div>
-        <h3>Act now</h3>
+        <h3>现在行动</h3>
         {act.length ? act.map((row) => <Link href={`/products/${row.product.id}`} key={row.product.id}>
           <b>{row.product.name}</b>
-          <span>{cash(candidatePrice(row))}</span>
-        </Link>) : <p>No executable buy signal.</p>}
+          <span>{cashPrice(candidatePrice(row))}</span>
+        </Link>) : <p>暂无可执行信号。</p>}
       </div>
       <div>
-        <h3>Verify next</h3>
+        <h3>下一步核验</h3>
         {verify.length ? verify.map((row) => <Link href="/verification" key={row.product.id}>
           <b>{row.product.name}</b>
-          <span>{cash(productPrice(row))}</span>
-        </Link>) : <p>No urgent verification lane.</p>}
+          <span>{cashPrice(productPrice(row))}</span>
+        </Link>) : <p>暂无紧急核验项。</p>}
       </div>
       <div>
-        <h3>Close the loop</h3>
-        <Link href="/sources"><b>Run source health</b><span>Check provider and crawler status</span></Link>
-        <Link href="/reports"><b>Generate report</b><span>Capture decisions for GPT handoff</span></Link>
+        <h3>完成闭环</h3>
+        <Link href="/sources"><b>检查数据源健康</b><span>查看供应商与抓取状态</span></Link>
+        <Link href="/reports"><b>生成今日报告</b><span>沉淀决策与运行证据</span></Link>
       </div>
     </div>
   </section>

@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import type { Listing, Price, PriceAnalytics, Product, Signal, Strategy } from '@/lib/types'
+import { parseApiDate } from '@/lib/format'
 
 type Props = { product:Product; listings:Listing[]; prices:Price[]; analytics:PriceAnalytics; signals:Signal[]; strategy?:Strategy|null }
 type WindowKey = 7|30|90|180|0
@@ -14,11 +15,11 @@ const money=(v?:number|null,f='—',currency='CNY')=>{
   const normalized=currency.toUpperCase()
   try{return new Intl.NumberFormat(normalized==='CNY'?'zh-CN':'en-US',{style:'currency',currency:normalized,maximumFractionDigits:0}).format(v)}catch{return `${normalized} ${Math.round(v).toLocaleString('en-US')}`}
 }
-const shortDate=(v?:string|null)=>v?new Date(v).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'}):'—'
-const dateTime=(v?:string|null)=>v?new Date(v).toLocaleString('zh-CN',{hour12:false}):'—'
+const shortDate=(v?:string|null)=>parseApiDate(v)?.toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'})??'—'
+const dateTime=(v?:string|null)=>parseApiDate(v)?.toLocaleString('zh-CN',{hour12:false})??'—'
 const statusLabel=(s?:string|null)=>({VERIFIED_CHECKOUT:'已核验到手价',VISIBLE_PRICE:'仅网页可见价',UNVERIFIED:'未核验证据',INVALID:'无效记录'}[s??'']??s??'未知状态')
 const tone=(s?:string|null)=>s==='VERIFIED_CHECKOUT'?'verified':s==='VISIBLE_PRICE'?'visible':s==='INVALID'?'invalid':'unverified'
-const within=(v:string,d:WindowKey)=>d===0||Date.now()-new Date(v).getTime()<=d*86400000
+const within=(v:string,d:WindowKey)=>{const date=parseApiDate(v);return d===0||Boolean(date&&Date.now()-date.getTime()<=d*86400000)}
 
 function TrendChart({prices,strategy,days}:{prices:Price[];strategy?:Strategy|null;days:WindowKey}){
   const currencyCounts=prices.reduce<Record<string,number>>((counts,p)=>{if(bestPrice(p)!=null){const currency=(p.currency||'CNY').toUpperCase();counts[currency]=(counts[currency]??0)+1}return counts},{})

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
 from app import models
@@ -14,6 +14,7 @@ def latest_prices_by_product(
     statuses: list[str] | None = None,
     *,
     trusted_only: bool = False,
+    priced_only: bool = False,
 ) -> dict[int, models.PriceRecord]:
     if not product_ids:
         return {}
@@ -26,6 +27,10 @@ def latest_prices_by_product(
     ).filter(models.PriceRecord.product_id.in_(product_ids))
     if statuses:
         ranked_query = ranked_query.filter(models.PriceRecord.verification_status.in_(statuses))
+    if priced_only:
+        ranked_query = ranked_query.filter(
+            or_(models.PriceRecord.list_price.isnot(None), models.PriceRecord.promotion_price.isnot(None))
+        )
     if trusted_only:
         ranked_query = ranked_query.filter(
             db.query(models.PriceEvidence.id).filter(

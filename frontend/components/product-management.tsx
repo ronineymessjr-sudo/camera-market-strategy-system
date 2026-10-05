@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { API_BASE } from '@/lib/api'
 import { operatorRequest } from '@/lib/operator-api'
+import { dateTimeLabel } from '@/lib/format'
 import type { ProductOverview, Price } from '@/lib/types'
 import { StatusBadge } from './status-badge'
 import { VerifyPriceForm } from './verify-price-form'
@@ -23,14 +24,14 @@ function PriceRow({ row }: { row: Price }) {
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <div className="font-semibold">{money(visible, row.currency || 'CNY')}</div>
-        <div className="mt-1 text-xs text-slate-400">{row.platform || 'unknown'} · {new Date(row.captured_at).toLocaleString('zh-CN')}</div>
+        <div className="mt-1 text-xs text-slate-400">{row.platform || 'unknown'} · {dateTimeLabel(row.captured_at)}</div>
       </div>
       <StatusBadge status={row.verification_status} />
     </div>
     <div className="mt-3 grid gap-2 text-sm text-slate-300 md:grid-cols-2">
       <div>原始文本：{row.raw_price_text || '—'}</div>
       <div>置信度：{row.confidence_score == null ? '—' : row.confidence_score.toFixed(2)}</div>
-      <div>有效至：{row.valid_until ? new Date(row.valid_until).toLocaleString('zh-CN') : '—'}</div>
+      <div>有效至：{row.valid_until ? dateTimeLabel(row.valid_until) : '—'}</div>
       <div className="md:col-span-2 break-words">上下文：{row.raw_price_context || row.review_note || '—'}</div>
       {row.source_url && <a className="text-sky-300 hover:underline" href={row.source_url} target="_blank" rel="noreferrer">打开来源</a>}
       {row.screenshot_path && <a className="text-sky-300 hover:underline" href={`${API_BASE}${row.screenshot_path}`} target="_blank" rel="noreferrer">查看截图</a>}

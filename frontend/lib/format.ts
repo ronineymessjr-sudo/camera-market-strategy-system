@@ -31,10 +31,21 @@ export function confidence(value?: number | null) {
   return `${Math.round(value * 100)}%`
 }
 
+export function parseApiDate(value?: string | null) {
+  if (!value) return null
+  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export function dateTimeLabel(value?: string | null, fallback = '—') {
+  return parseApiDate(value)?.toLocaleString('zh-CN', { hour12: false }) ?? fallback
+}
+
 export function shortDate(value?: string | null) {
   if (!value) return '暂无'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '暂无'
+  const date = parseApiDate(value)
+  if (!date) return '暂无'
   return date.toLocaleString('zh-CN', {
     month: '2-digit',
     day: '2-digit',
@@ -45,7 +56,8 @@ export function shortDate(value?: string | null) {
 
 export function ageLabel(value?: string | null) {
   if (!value) return '暂无更新'
-  const date = new Date(value)
+  const date = parseApiDate(value)
+  if (!date) return '暂无更新'
   const diffMs = Date.now() - date.getTime()
   if (Number.isNaN(diffMs)) return '暂无更新'
   const minutes = Math.max(0, Math.round(diffMs / 60000))

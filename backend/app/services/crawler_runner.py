@@ -48,6 +48,27 @@ class CrawlBatchResult:
     skipped_listing_ids: list[int]
 
 
+def _failure_for_result(listing: ListingSnapshot, result: CrawlResult) -> dict[str, Any] | None:
+    if result.error:
+        error_type = "CRAWL_ERROR"
+        error = result.error
+    elif result.stock_status == "ACCESS_DENIED":
+        error_type = "ACCESS_DENIED"
+        error = "The page blocked automated access"
+    elif result.verification_status != "VISIBLE_PRICE" or result.visible_price is None:
+        error_type = "PRICE_NOT_EXTRACTED"
+        error = "The page loaded but no visible price was extracted"
+    else:
+        return None
+    return {"listing_id": listing.id, "url": listing.url, "error_type": error_type, "error": error}
+
+
+def _crawl_run_status(success_count: int, failure_count: int) -> str:
+    if failure_count == 0:
+        return "SUCCESS"
+    return "PARTIAL" if success_count else "FAILED"
+
+
 async def crawl_listing_snapshot(browser, listing: ListingSnapshot, semaphore: asyncio.Semaphore) -> tuple[ListingSnapshot, CrawlResult]:
     async with semaphore:
         last_error: Exception | None = None
@@ -222,8 +243,9 @@ async def run_crawl_batch(
         db.add(record)
         db.flush()
         records.append(record)
-        if result.error:
-            failures.append({"listing_id": listing.id, "url": listing.url, "error": result.error})
+        failure = _failure_for_result(listing, result)
+        if failure:
+            failures.append(failure)
         log_items.append({"listing": asdict(listing), "result": asdict(result), "price_record_id": record.id})
 
     duration = round(time.perf_counter() - started, 3)
@@ -240,11 +262,11 @@ async def run_crawl_batch(
     }
     log_path.write_text(json.dumps(log_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    run.status = "SUCCESS" if not failures else ("PARTIAL" if records else "FAILED")
-    run.finished_at = datetime.now(timezone.utc)
-    run.duration_seconds = duration
     run.success_count = len(records) - len(failures)
     run.failure_count = len(failures)
+    run.status = _crawl_run_status(run.success_count, run.failure_count)
+    run.finished_at = datetime.now(timezone.utc)
+    run.duration_seconds = duration
     run.skipped_count = len(skipped)
     run.details_json = json.dumps(
         {
@@ -282,12 +304,14 @@ def _record_crawl_source_health(
             failure_count_by_platform[snapshot.platform] = failure_count_by_platform.get(snapshot.platform, 0) + 1
     for record in records:
         key = record.platform or "generic"
-        record_count_by_platform[key] = record_count_by_platform.get(key, 0) + 1
+        has_price = record.list_price is not None or record.promotion_price is not None
+        if has_price and record.listing_id not in failed_listing_ids:
+            record_count_by_platform[key] = record_count_by_platform.get(key, 0) + 1
 
     for platform in platforms:
         total = total_by_platform.get(platform, 0)
         failures_for_platform = failure_count_by_platform.get(platform, 0)
-        successes = max(record_count_by_platform.get(platform, 0) - failures_for_platform, 0)
+        successes = record_count_by_platform.get(platform, 0)
         status = "SUCCESS" if failures_for_platform == 0 else ("PARTIAL" if successes else "FAILED")
         record_source_health(
             db,

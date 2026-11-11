@@ -53,7 +53,9 @@ def product_overview(
     product_ids = [product.id for product in products]
     latest_any_by_product = latest_prices_by_product(db, product_ids)
     latest_verified_by_product = latest_prices_by_product(db, product_ids, ["VERIFIED_CHECKOUT"], trusted_only=True)
-    latest_clue_by_product = latest_prices_by_product(db, product_ids, ["VISIBLE_PRICE", "UNVERIFIED"])
+    latest_clue_by_product = latest_prices_by_product(
+        db, product_ids, ["VISIBLE_PRICE", "UNVERIFIED"], priced_only=True
+    )
     strategies_by_product = active_strategies_by_product(db, product_ids)
     signals_by_product = latest_signals_by_product(db, product_ids)
     recent_by_product = recent_prices_by_product(db, product_ids)

@@ -40,10 +40,25 @@ def confirm_purchase(
     if price.verification_status != "VERIFIED_CHECKOUT" or price.checkout_price is None:
         raise HTTPException(409, "Only a verified checkout price can be confirmed for purchase")
     valid_until = price.valid_until
+    if not valid_until:
+        raise HTTPException(409, "This checkout verification has no expiry; verify it again before confirming")
     if valid_until and valid_until.tzinfo is None:
         valid_until = valid_until.replace(tzinfo=timezone.utc)
     if valid_until and valid_until < datetime.now(timezone.utc):
         raise HTTPException(409, "The verified checkout price has expired; verify it again before confirming")
+    trusted_upload = (
+        db.query(models.EvidenceUpload)
+        .join(models.PriceEvidence, models.PriceEvidence.upload_id == models.EvidenceUpload.id)
+        .filter(
+            models.PriceEvidence.price_record_id == price.id,
+            models.PriceEvidence.trusted_for_strategy.is_(True),
+            models.PriceEvidence.origin == "OPERATOR_UPLOAD",
+            models.EvidenceUpload.consumed_by_price_record_id == price.id,
+        )
+        .first()
+    )
+    if not trusted_upload:
+        raise HTTPException(409, "Trusted uploaded checkout evidence is required before confirming a purchase")
     product = db.get(models.Product, price.product_id)
     if not product:
         raise HTTPException(409, "Product for price record not found")

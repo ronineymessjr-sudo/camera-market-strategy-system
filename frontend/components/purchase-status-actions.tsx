@@ -22,7 +22,7 @@ export function PurchaseStatusActions({ purchase }: { purchase: PurchaseConfirma
 
   if (purchase.status !== 'CONFIRMED') return null
   return <div className="verify-actions">
-    <button className="btn-primary" disabled={busy} type="button" onClick={() => update('COMPLETED')}>Mark bought</button>
-    <button className="btn-secondary" disabled={busy} type="button" onClick={() => update('CANCELLED')}>Cancel</button>
+    <button className="btn-primary" disabled={busy} type="button" onClick={() => update('COMPLETED')}>标记已购买</button>
+    <button className="btn-secondary" disabled={busy} type="button" onClick={() => update('CANCELLED')}>取消记录</button>
   </div>
 }

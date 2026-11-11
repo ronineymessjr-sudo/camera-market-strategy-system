@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
-from app.models import PriceRecord, Product
+from app.models import EvidenceUpload, PriceEvidence, PriceRecord, Product
 
 
 def test_purchase_confirmation_requires_current_verified_checkout():
@@ -44,6 +44,33 @@ def test_purchase_confirmation_requires_current_verified_checkout():
         client = TestClient(app)
         assert client.get("/api/purchases").status_code == 401
         assert client.post("/api/purchases", json={"price_record_id": price.id}).status_code == 401
+        missing_evidence = client.post(
+            "/api/purchases",
+            headers={"X-Operator-Token": "test-operator-token"},
+            json={"price_record_id": price.id},
+        )
+        assert missing_evidence.status_code == 409
+
+        upload = EvidenceUpload(
+            object_path="test/purchase-checkout.png",
+            evidence_hash="test-checkout-hash",
+            mime_type="image/png",
+            size_bytes=12,
+            uploaded_by="operator-token",
+            consumed_by_price_record_id=price.id,
+        )
+        db.add(upload)
+        db.flush()
+        db.add(PriceEvidence(
+            price_record_id=price.id,
+            upload_id=upload.id,
+            evidence_type="CHECKOUT",
+            origin="OPERATOR_UPLOAD",
+            trusted_for_strategy=True,
+            object_path=upload.object_path,
+            evidence_hash=upload.evidence_hash,
+        ))
+        db.commit()
 
         response = client.post(
             "/api/purchases",
@@ -75,6 +102,15 @@ def test_purchase_confirmation_requires_current_verified_checkout():
         assert completed.status_code == 200
         assert completed.json()["status"] == "COMPLETED"
         assert completed.json()["completed_at"] is not None
+
+        price.valid_until = None
+        db.commit()
+        missing_expiry = client.post(
+            "/api/purchases",
+            headers={"X-Operator-Token": "test-operator-token"},
+            json={"price_record_id": price.id},
+        )
+        assert missing_expiry.status_code == 409
 
         price.valid_until = datetime.now(timezone.utc) - timedelta(minutes=1)
         db.commit()

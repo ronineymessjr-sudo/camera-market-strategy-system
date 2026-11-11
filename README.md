@@ -1,6 +1,6 @@
 # Camera Market Strategy System
 
-V0.15 is a single-operator camera-market price intelligence platform. It collects public price clues, requires uploaded checkout evidence before a price becomes actionable, evaluates operator-defined strategies, and produces reports and notifications without placing orders.
+V0.16 is a single-operator camera-market price intelligence platform. It collects public price clues, requires uploaded checkout evidence before a price becomes actionable, evaluates operator-defined strategies, and produces reports and notifications without placing orders.
 
 ## Current Status
 
@@ -12,7 +12,7 @@ V0.15 is a single-operator camera-market price intelligence platform. It collect
 - Private app ingress: Cloudflare Access and a remotely managed Cloudflare Tunnel
 - Production data: Supabase/Postgres only; SQLite is development and migration-source data only
 
-The V0.15 code path is locally verified, but production is not considered live until the required GitHub secrets, domain, Access application, Tunnel, cloud host, and remote smoke tests are complete.
+The V0.16 code path is being verified. Production is not considered live until the required GitHub secrets, domain, Access application, Tunnel, cloud host, and remote smoke tests are complete.
 
 ## Trust Rule
 
@@ -23,7 +23,7 @@ VERIFIED_CHECKOUT + OPERATOR_UPLOAD + trusted evidence + fresh currency match = 
 
 Historical `VERIFIED_CHECKOUT` rows without server-recorded evidence are downgraded for re-verification. Marketplace API imports and crawlers can only create `VISIBLE_PRICE` or `UNVERIFIED` records.
 
-## V0.15 Capabilities
+## V0.16 Capabilities
 
 - Cloudflare Access JWT validation with an automation-token fallback for CI and workers.
 - Private Supabase Storage uploads for JPEG, PNG, WebP, and PDF checkout evidence.
@@ -34,6 +34,8 @@ Historical `VERIFIED_CHECKOUT` rows without server-recorded evidence are downgra
 - Batched bootstrap and product-overview queries to reduce database round trips.
 - Request IDs, JSON request logs, heavy-operation rate limits, liveness, and readiness endpoints.
 - GHCR image deployment, migration tracking, trust verification, Cloudflare Tunnel, and application rollback workflow.
+- Manual purchase confirmations use fresh verified checkout prices, with no automatic order or payment.
+- Chinese operator dashboard separates current verified prices from historical records and shows unavailable API state.
 
 ## Main APIs
 
@@ -51,7 +53,7 @@ Historical `VERIFIED_CHECKOUT` rows without server-recorded evidence are downgra
 - `POST /api/notifications/read-all`
 - `GET /api/source-health/history`
 
-Existing synchronous mutation routes remain available for one compatibility release, but the V0.15 frontend uses the asynchronous job APIs.
+Existing synchronous mutation routes remain available for one compatibility release, but the V0.16 frontend uses the asynchronous job APIs.
 
 ## Local Verification
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## V0.16.0
+
+### Operator console and trust clarity
+- Reworked the home view into a Chinese price-monitoring workflow with clearer data availability and fresh-verification states.
+- Corrected current-price counts so expired checkout verifications remain historical and cannot appear as current trusted prices.
+- Added an all-pages mobile menu and accessible labels for compact navigation.
+- Kept daily-flow submissions on the configured crawl interval and retained completion feedback after refresh.
+- Added loading failure and retry states to global product search.
+- Localized purchase confirmations while preserving the manual-order-only boundary.
+- Bumped frontend and backend version metadata to 0.16.0.
+
 ## V0.3.0
 
 ### Dynamic watchlist

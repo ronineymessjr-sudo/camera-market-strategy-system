@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PriceChart, SectionCard, StatusPill } from '@/components/dashboard-ui'
 import { HistoryExport } from '@/components/history-export'
 import { api } from '@/lib/api'
-import { bestPrice, money, shortDate } from '@/lib/format'
+import { bestPrice, money, parseApiDate, shortDate } from '@/lib/format'
 import type { Price, Signal } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -45,7 +45,7 @@ export default async function History({ searchParams }: { searchParams?: Promise
     .reverse()
     .map((price) => ({
       value: bestPrice(price)!,
-      label: new Date(price.captured_at).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }),
+      label: parseApiDate(price.captured_at)?.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) ?? '',
     }))
   const lows = [...prices]
     .filter((price) => price.verification_status === 'VERIFIED_CHECKOUT' && (price.currency || 'CNY').toUpperCase() === chartCurrency)

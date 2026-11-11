@@ -2,6 +2,9 @@
   "name": "camera-market-intelligence",
   "main": "entry.js",
   "compatibility_date": "2026-06-02",
+  "vars": {
+    "APP_URL": "https://camera.ronineymessjrstudio.cn"
+  },
   "d1_databases": [
     {
       "binding": "FEEDBACK_DB",

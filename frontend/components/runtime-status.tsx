@@ -26,6 +26,6 @@ export function RuntimeStatus() {
     }
   }, [])
 
-  const label = state === 'ready' ? 'API ready' : state === 'checking' ? 'Checking API' : state === 'degraded' ? 'API degraded' : 'API offline'
+  const label = state === 'ready' ? '接口正常' : state === 'checking' ? '正在检查接口' : state === 'degraded' ? '接口降级' : '接口离线'
   return <span className={`live runtime-${state}`} title="Live backend readiness check"><i />{label}</span>
 }
